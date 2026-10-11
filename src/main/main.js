@@ -27,6 +27,44 @@ const isDev = process.argv.includes('--dev');
 
 function getConfig() { return config; }
 
+
+async function runScreenshotTour() {
+  const shotDir = path.join(__dirname, '../../screenshots');
+  fs.mkdirSync(shotDir, { recursive: true });
+  const wait = (ms) => new Promise(r => setTimeout(r, ms));
+  const capture = async (name) => {
+    const img = await mainWindow.webContents.capturePage();
+    const dest = path.join(shotDir, name);
+    fs.writeFileSync(dest, img.toPNG());
+    console.log('SHOT', dest);
+  };
+  await wait(1500);
+  await capture('01-onboarding-welcome.png');
+  await mainWindow.webContents.executeJavaScript(`document.getElementById('ob-next1')?.click()`);
+  await wait(600);
+  await capture('02-onboarding-collectors.png');
+  await mainWindow.webContents.executeJavaScript(`document.getElementById('ob-c-window').checked=true;document.getElementById('ob-c-browser').checked=true;document.getElementById('ob-next2')?.click()`);
+  await wait(600);
+  await capture('03-onboarding-ai.png');
+  await mainWindow.webContents.executeJavaScript(`document.getElementById('ob-skip3')?.click()`);
+  await wait(600);
+  await capture('04-onboarding-ready.png');
+  await mainWindow.webContents.executeJavaScript(`document.getElementById('ob-finish')?.click()`);
+  await wait(1200);
+  seedDemoData();
+  await mainWindow.webContents.executeJavaScript(`window.mindtrace && (async()=>{const s=document.querySelector('[data-view=dashboard]'); s&&s.click(); await new Promise(r=>setTimeout(r,400));})()`);
+  await wait(800);
+  await capture('05-dashboard.png');
+  for (const [view, file] of [['timeline','06-timeline.png'],['knowledge','07-knowledge.png'],['chat','08-chat.png'],['collect','09-collect.png'],['ai','10-settings.png']]) {
+    await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view="${view}"]')?.click()`);
+    await wait(700);
+    await capture(file);
+  }
+  console.log('SCREENSHOT_TOUR_DONE');
+  app.isQuitting = true;
+  app.quit();
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -45,7 +83,13 @@ function createWindow() {
     icon: path.join(__dirname, '../../assets/icon.png')
   });
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    if (process.argv.includes('--screenshot-tour')) {
+      // fresh onboarding for tour
+      runScreenshotTour().catch(e => { console.error(e); app.quit(); });
+    }
+  });
   mainWindow.on('close', (e) => {
     if (!app.isQuitting) {
       e.preventDefault();
@@ -100,6 +144,10 @@ function broadcastStatus() {
 
 function startCollectors() {
   const opts = { getConfig };
+  const cols = config.collectors || {};
+  const any = Object.values(cols).some(Boolean);
+  if (!any) { console.log('no collectors enabled'); }
+
   windowTracker.start({ ...opts, intervalMs: 2000, onChange: () => {} });
   browserHistory.start({ ...opts, intervalMs: 60000 });
   clipboardCollector.start({ ...opts, clipboard, intervalMs: 1500 });
@@ -338,6 +386,11 @@ function registerIpc() {
 
 app.whenReady().then(async () => {
   config = loadConfig();
+  if (process.argv.includes('--screenshot-tour')) {
+    config.onboardingCompleted = false;
+    config.authorized = false;
+    saveConfig(config);
+  }
   if (!config.api.token) {
     config.api.token = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
     saveConfig(config);

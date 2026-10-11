@@ -1,13 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const chokidar = require('chokidar');
 const store = require('../main/store');
 
-let watcher = null;
+let watchers = [];
+let pollTimer = null;
 let recentTimer = null;
 let getConfig = () => ({});
 const seen = new Map();
+const mtimes = new Map();
 
 const DOC_EXT = new Set(['.pdf', '.docx', '.doc', '.md', '.txt', '.epub', '.rtf', '.csv', '.xlsx', '.pptx', '.html']);
 
@@ -19,7 +20,6 @@ function defaultWatchFolders() {
     path.join(home, 'Downloads')
   ];
   if (process.platform === 'win32') {
-    folders.push(path.join(home, 'Recent'));
     folders.push(path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Recent'));
   }
   return folders.filter(f => f && fs.existsSync(f));
@@ -29,8 +29,7 @@ async function extractText(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   try {
     if (ext === '.txt' || ext === '.md' || ext === '.csv' || ext === '.rtf') {
-      const buf = fs.readFileSync(filePath, 'utf8');
-      return buf.slice(0, 20000);
+      return fs.readFileSync(filePath, 'utf8').slice(0, 20000);
     }
     if (ext === '.docx') {
       const mammoth = require('mammoth');
@@ -40,12 +39,9 @@ async function extractText(filePath) {
     if (ext === '.pdf') {
       try {
         const pdfParse = require('pdf-parse');
-        const buf = fs.readFileSync(filePath);
-        const data = await pdfParse(buf);
+        const data = await pdfParse(fs.readFileSync(filePath));
         return (data.text || '').slice(0, 20000);
-      } catch (e) {
-        return '';
-      }
+      } catch (_) { return ''; }
     }
   } catch (e) {
     console.error('extractText', filePath, e.message);
@@ -76,9 +72,7 @@ async function recordFile(filePath, event) {
   let content = '';
   try {
     const stat = fs.statSync(filePath);
-    if (stat.size < 8 * 1024 * 1024) {
-      content = await extractText(filePath);
-    }
+    if (stat.size < 8 * 1024 * 1024) content = await extractText(filePath);
   } catch (_) {}
 
   store.insertActivity({
@@ -93,13 +87,44 @@ async function recordFile(filePath, event) {
   });
 }
 
+function walkDir(dir, depth, out) {
+  if (depth < 0) return;
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const ent of entries) {
+    if (ent.name.startsWith('.')) continue;
+    const full = path.join(dir, ent.name);
+    if (ent.isDirectory()) walkDir(full, depth - 1, out);
+    else if (ent.isFile()) out.push(full);
+  }
+}
+
+function pollFolders() {
+  const cfg = getConfig();
+  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.documents) return;
+  const folders = (cfg.watchFolders && cfg.watchFolders.length) ? cfg.watchFolders : defaultWatchFolders();
+  for (const folder of folders) {
+    const files = [];
+    walkDir(folder, 2, files);
+    for (const f of files) {
+      const ext = path.extname(f).toLowerCase();
+      if (!DOC_EXT.has(ext)) continue;
+      let st;
+      try { st = fs.statSync(f); } catch { continue; }
+      const prev = mtimes.get(f);
+      mtimes.set(f, st.mtimeMs);
+      if (prev === undefined) continue; // first sighting: don't flood
+      if (st.mtimeMs > prev) recordFile(f, 'change');
+    }
+  }
+}
+
 function scanRecent() {
   if (process.platform !== 'win32') return;
   const recent = path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Recent');
   if (!fs.existsSync(recent)) return;
   try {
     const files = fs.readdirSync(recent).filter(f => f.endsWith('.lnk')).slice(0, 40);
-    // We record .lnk names as hints; full resolve needs powershell
     for (const f of files) {
       const full = path.join(recent, f);
       const mtime = fs.statSync(full).mtimeMs;
@@ -130,21 +155,34 @@ function start(opts = {}) {
   stop();
   const cfg = getConfig();
   const folders = (cfg.watchFolders && cfg.watchFolders.length) ? cfg.watchFolders : defaultWatchFolders();
-  if (!folders.length) return;
-  watcher = chokidar.watch(folders, {
-    ignoreInitial: true,
-    depth: 3,
-    awaitWriteFinish: { stabilityThreshold: 1500, pollInterval: 200 },
-    ignored: /(^|[\/\\])\./
-  });
-  watcher.on('add', p => recordFile(p, 'add'));
-  watcher.on('change', p => recordFile(p, 'change'));
+  for (const folder of folders) {
+    try {
+      const w = fs.watch(folder, { recursive: true }, (eventType, filename) => {
+        if (!filename) return;
+        const full = path.join(folder, filename);
+        if (eventType === 'rename' || eventType === 'change') {
+          setTimeout(() => {
+            try { if (fs.existsSync(full) && fs.statSync(full).isFile()) recordFile(full, eventType); } catch (_) {}
+          }, 800);
+        }
+      });
+      w.on('error', () => {});
+      watchers.push(w);
+    } catch (_) {
+      // recursive watch unsupported on some platforms — poll covers it
+    }
+  }
+  // seed mtimes then poll
+  pollFolders();
+  pollTimer = setInterval(pollFolders, 45000);
   recentTimer = setInterval(scanRecent, 120000);
   setTimeout(scanRecent, 8000);
 }
 
 function stop() {
-  if (watcher) { watcher.close(); watcher = null; }
+  for (const w of watchers) { try { w.close(); } catch (_) {} }
+  watchers = [];
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   if (recentTimer) { clearInterval(recentTimer); recentTimer = null; }
 }
 

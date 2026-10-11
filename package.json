@@ -32,18 +32,25 @@
       "target": [
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.ico",
       "artifactName": "MindTrace-${version}-${os}-${arch}.${ext}"
     },
     "linux": {
-      "target": ["AppImage", "dir"],
+      "target": [
+        "AppImage",
+        "dir"
+      ],
       "category": "Utility",
       "icon": "assets/icon.png"
     },
@@ -57,12 +64,10 @@
     }
   },
   "dependencies": {
-    "chokidar": "^4.0.3",
     "dayjs": "^1.11.13",
     "mammoth": "^1.9.0",
     "pdf-parse": "^1.1.1",
-    "sql.js": "^1.12.0",
-    "uuid": "^11.1.0"
+    "sql.js": "^1.12.0"
   },
   "devDependencies": {
     "electron": "^33.0.0",
