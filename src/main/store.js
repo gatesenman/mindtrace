@@ -2,6 +2,7 @@ const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { isSelfApp, friendlyAppName } = require('./appNames');
 const { app } = require('electron');
 
 let SQL = null;
@@ -293,24 +294,43 @@ function searchActivities({ q, type, from, to, limit = 100 } = {}) {
     params.push(like, like, like, like, like);
   }
   sql += ` ORDER BY started_at DESC LIMIT ?`;
-  params.push(limit);
-  return all(sql, params);
+  params.push(Math.max(limit * 3, limit)); // over-fetch then filter self
+  const rows = all(sql, params).filter(a => !isSelfApp({ app: a.app_name, process: a.process_name, title: a.window_title }));
+  return rows.slice(0, limit).map(a => ({
+    ...a,
+    app_name: friendlyAppName(a.app_name, a.process_name, a.window_title)
+  }));
 }
 
 function getTodayStats() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const from = start.getTime();
-  const acts = all(`SELECT app_name, SUM(duration_ms) as total_ms, COUNT(*) as cnt FROM activities WHERE type='window' AND started_at>=? GROUP BY app_name ORDER BY total_ms DESC`, [from]);
-  const totals = get(`SELECT COUNT(*) as c, COALESCE(SUM(duration_ms),0) as ms FROM activities WHERE started_at>=?`, [from]);
+  const rawWindows = all(
+    `SELECT app_name, process_name, window_title, duration_ms FROM activities WHERE type='window' AND started_at>=?`,
+    [from]
+  );
+  const byApp = new Map();
+  let focusMs = 0;
+  for (const row of rawWindows) {
+    if (isSelfApp({ app: row.app_name, process: row.process_name, title: row.window_title })) continue;
+    const name = friendlyAppName(row.app_name, row.process_name, row.window_title);
+    const cur = byApp.get(name) || { app_name: name, total_ms: 0, cnt: 0 };
+    cur.total_ms += row.duration_ms || 0;
+    cur.cnt += 1;
+    byApp.set(name, cur);
+    focusMs += row.duration_ms || 0;
+  }
+  const acts = [...byApp.values()].sort((a, b) => b.total_ms - a.total_ms);
+  const allToday = all(`SELECT type, app_name, process_name, window_title FROM activities WHERE started_at>=?`, [from]);
+  const activityCount = allToday.filter(a => !isSelfApp({ app: a.app_name, process: a.process_name, title: a.window_title })).length;
   const cards = get(`SELECT COUNT(*) as c FROM knowledge_cards WHERE created_at>=?`, [from]);
   const shots = get(`SELECT COUNT(*) as c FROM screenshots WHERE taken_at>=?`, [from]);
   const browser = get(`SELECT COUNT(*) as c FROM activities WHERE type='browser' AND started_at>=?`, [from]);
-  const focus = get(`SELECT COALESCE(SUM(duration_ms),0) as ms FROM activities WHERE type='window' AND started_at>=?`, [from]);
   return {
     appBreakdown: acts,
-    activityCount: totals?.c || 0,
-    totalMs: focus?.ms || totals?.ms || 0,
+    activityCount,
+    totalMs: focusMs,
     cardsToday: cards?.c || 0,
     screenshotsToday: shots?.c || 0,
     browserCount: browser?.c || 0
@@ -358,6 +378,8 @@ function clearDemoData() {
   run(`DELETE FROM knowledge_cards WHERE tags LIKE '%"示例"%' OR title LIKE '【示例】%'`);
   run(`DELETE FROM journals WHERE title LIKE '示例%' OR title LIKE '【示例】%'`);
   run(`DELETE FROM topics WHERE name LIKE '【示例】%' OR summary LIKE '%示例主题%'`);
+  // Demo chat thread is always sample content — clear when leaving demo mode
+  try { run(`DELETE FROM chat_messages`); } catch (_) {}
 }
 
 function getDbPath() { return dbPath; }

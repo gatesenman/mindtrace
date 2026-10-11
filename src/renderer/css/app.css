@@ -326,3 +326,27 @@ body.theme-light {
 }
 .kcard { cursor: pointer; }
 .kcard:hover { border-color: var(--brand); }
+
+/* Chat suggestions */
+.chat-suggestions {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 4px 0 12px;
+}
+.chat-suggestions.hidden { display: none !important; }
+.suggest-chip {
+  border: 1px solid var(--border-strong, var(--border));
+  background: var(--bg-sunken, var(--bg3, #eef1f8));
+  color: var(--text-secondary, var(--muted));
+  border-radius: 999px; padding: 8px 14px; font-size: 12px; cursor: pointer;
+  text-align: left; line-height: 1.4;
+}
+.suggest-chip:hover {
+  border-color: var(--brand, var(--primary));
+  color: var(--brand, var(--primary));
+  background: var(--brand-soft, rgba(47,111,237,.08));
+}
+.chat-log:empty + .chat-suggestions { display: flex; }
+.chat-empty { text-align: center; padding: 48px 20px 24px; }
+.chat-empty h3 { margin: 0 0 8px; font-size: 16px; color: var(--text); }
+.chat-empty p { margin: 0; font-size: 13px; color: var(--text-secondary, var(--muted)); line-height: 1.6; max-width: 420px; margin-inline: auto; }
+.empty { text-align: center; padding: 28px 16px; color: var(--text-secondary, var(--muted)); font-size: 13px; line-height: 1.6; }

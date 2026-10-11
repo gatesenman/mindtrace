@@ -3,6 +3,7 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 const store = require('../main/store');
 const status = require('../main/collectorStatus');
+const { friendlyAppName, isSelfApp } = require('../main/appNames');
 
 let timer = null;
 let current = null; // { id, app, process, title, startedAt }
@@ -133,6 +134,21 @@ async function tick() {
 
     const fg = await getForeground();
     if (!fg) { status.ok('window', '无前台窗口'); return; }
+    if (isSelfApp(fg)) {
+      if (current) {
+        const ended = Date.now();
+        const dur = ended - current.startedAt;
+        if (dur < ((cfg.privacy?.minDwellSec || 3) * 1000)) {
+          try { store.run(`DELETE FROM activities WHERE id=?`, [current.id]); } catch (_) {}
+        } else {
+          store.updateActivityEnd(current.id, ended, dur);
+        }
+        current = null;
+      }
+      status.ok('window', '已忽略知迹自身');
+      return;
+    }
+    fg.app = friendlyAppName(fg.app, fg.process, fg.title);
     if (isBlacklisted(fg, cfg)) {
       if (current) {
         const ended = Date.now();

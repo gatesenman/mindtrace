@@ -1,7 +1,8 @@
 node_modules/
 dist/
-data/
 *.log
 .DS_Store
-screenshots/*.png
-!screenshots/.gitkeep
+/tmp/
+.idea/
+.vscode/
+*.asar

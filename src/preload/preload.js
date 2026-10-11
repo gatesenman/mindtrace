@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('mindtrace', {
   getChat: () => ipcRenderer.invoke('get-chat'),
   ask: (q) => ipcRenderer.invoke('ask', q),
   summarizeToday: () => ipcRenderer.invoke('summarize-today'),
+  clusterTopics: () => ipcRenderer.invoke('cluster-topics'),
   extractCards: () => ipcRenderer.invoke('extract-cards'),
   exportVault: (p) => ipcRenderer.invoke('export-vault', p),
   pickFolder: () => ipcRenderer.invoke('pick-folder'),

@@ -27,6 +27,14 @@ let summarizeTimer = null;
 
 const isDev = process.argv.includes('--dev');
 
+try {
+  app.setName('知迹 MindTrace');
+  if (process.platform === 'linux') {
+    app.commandLine.appendSwitch('class', 'MindTrace');
+  }
+} catch (_) {}
+
+
 // Single-instance lock
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -85,6 +93,32 @@ async function runScreenshotTour() {
     }
     await capture(file);
   }
+  // Dark mode tour
+  await mainWindow.webContents.executeJavaScript(`
+    document.body.setAttribute('data-theme','dark');
+    document.body.classList.add('theme-dark');
+    document.body.classList.remove('theme-light');
+    document.querySelector('[data-view=dashboard]')?.click();
+  `);
+  await wait(600);
+  await capture('11-dashboard-dark.png');
+  for (const [view, file] of [['timeline','12-timeline-dark.png'],['knowledge','13-knowledge-dark.png'],['chat','14-chat-dark.png'],['collect','15-collect-dark.png'],['ai','16-settings-dark.png']]) {
+    await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view="${view}"]')?.click()`);
+    await wait(600);
+    await capture(file);
+  }
+  // Empty states (demo off)
+  setDemoMode(false);
+  await mainWindow.webContents.executeJavaScript(`
+    document.body.setAttribute('data-theme','light');
+    document.body.classList.remove('theme-dark');
+    document.querySelector('[data-view=dashboard]')?.click();
+  `);
+  await wait(700);
+  await capture('17-dashboard-empty.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=chat]')?.click()`);
+  await wait(500);
+  await capture('18-chat-empty.png');
   console.log('SCREENSHOT_TOUR_DONE');
   app.isQuitting = true;
   app.quit();
@@ -272,6 +306,22 @@ function seedDemoData() {
   });
   store.upsertTopic({ name: '【示例】桌面知识产品', summary: '围绕知迹产品的设计与实现。示例主题。', card_ids: [c1, c2], activity_count: 12, last_seen: now });
   store.upsertTopic({ name: '【示例】协作沟通', summary: '与张三等协作相关的讨论与待办。示例主题。', card_ids: [c3], activity_count: 5, last_seen: now });
+
+  // Sample ask-history thread with citations (demo mode empty-state polish)
+  try { store.run(`DELETE FROM chat_messages`); } catch (_) {}
+  const acts = store.all(`SELECT id, app_name, window_title, started_at FROM activities WHERE meta LIKE '%isDemo%' ORDER BY started_at DESC LIMIT 5`);
+  const wechat = acts.find(a => /微信/.test(a.app_name || '')) || acts[0];
+  const vscode = acts.find(a => /VS Code|Code/.test(a.app_name || '')) || acts[1] || acts[0];
+  store.addChatMessage('user', '今天我和谁讨论过项目进度？');
+  store.addChatMessage(
+    'assistant',
+    '根据记录，你今天通过微信与「张三」沟通了项目相关事项，并在 VS Code 中继续推进知迹的实现。[C1]\n\n建议把「配置 AI API Key」待办尽快完成，以便自动生成日刊。',
+    [
+      wechat && { key: 'E1', kind: 'activity', id: wechat.id, type: 'window', label: `${wechat.app_name || ''} ${wechat.window_title || ''}`.trim(), started_at: wechat.started_at },
+      { key: 'C1', kind: 'card', id: c3, type: 'person', label: '【示例】张三' },
+      vscode && { key: 'E2', kind: 'activity', id: vscode.id, type: 'window', label: `${vscode.app_name || ''} ${vscode.window_title || ''}`.trim(), started_at: vscode.started_at }
+    ].filter(Boolean)
+  );
 }
 
 function setDemoMode(on) {
@@ -373,6 +423,15 @@ function registerIpc() {
     try {
       const r = await summarizer.buildDailyJournal(config);
       return { ok: true, journal: r };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('cluster-topics', async () => {
+    try {
+      const ids = await summarizer.clusterTopics(config);
+      return { ok: true, ids };
     } catch (e) {
       return { ok: false, error: e.message };
     }

@@ -80,8 +80,31 @@ function start(opts = {}) {
       if (req.method === 'POST' && url.pathname === '/ask') {
         const body = await readBody(req);
         if (!body.question) return json(res, 400, { error: 'question required' });
-        const answer = await summarizer.askHistory(cfgNow, body.question);
-        return json(res, 200, { answer });
+        const result = await summarizer.askHistory(cfgNow, body.question);
+        if (typeof result === 'string') return json(res, 200, { answer: result, citations: [] });
+        return json(res, 200, { answer: result.answer, citations: result.citations || [] });
+      }
+      if (req.method === 'GET' && url.pathname === '/topics') {
+        return json(res, 200, { items: store.all(`SELECT * FROM topics ORDER BY updated_at DESC LIMIT 100`) });
+      }
+      if (req.method === 'GET' && url.pathname.startsWith('/journals/')) {
+        const day = decodeURIComponent(url.pathname.slice('/journals/'.length));
+        const item = store.get(`SELECT * FROM journals WHERE period_key=?`, [day]);
+        return item ? json(res, 200, item) : json(res, 404, { error: 'not found' });
+      }
+      if (req.method === 'POST' && url.pathname === '/summarize') {
+        const body = await readBody(req);
+        const journal = await summarizer.buildDailyJournal(cfgNow, body.day);
+        return json(res, 200, { ok: true, journal });
+      }
+      if (req.method === 'POST' && url.pathname === '/extract-cards') {
+        const body = await readBody(req);
+        const ids = await summarizer.extractCardsFromRecent(cfgNow, body.hours || 12);
+        return json(res, 200, { ok: true, ids });
+      }
+      if (req.method === 'POST' && url.pathname === '/cluster-topics') {
+        const ids = await summarizer.clusterTopics(cfgNow);
+        return json(res, 200, { ok: true, ids });
       }
       if (req.method === 'GET' && url.pathname === '/mcp/tools') {
         return json(res, 200, {

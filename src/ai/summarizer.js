@@ -161,6 +161,32 @@ async function askHistory(cfg, question) {
   return { answer, citations: used };
 }
 
+async function clusterTopics(cfg) {
+  const cards = store.all(`SELECT id, title, kind, summary, tags FROM knowledge_cards ORDER BY updated_at DESC LIMIT 80`);
+  const acts = store.all(`SELECT app_name, window_title, type FROM activities ORDER BY started_at DESC LIMIT 80`);
+  if (!cards.length && !acts.length) return [];
+  const payload = JSON.stringify({ cards, activities: acts }, null, 0).slice(0, 12000);
+  const { content } = await chatCompletion(cfg, [
+    { role: 'system', content: prompts.systemKnowledge },
+    { role: 'user', content: prompts.clusterTopics(payload) }
+  ], { max_tokens: 2000 });
+  const parsed = parseJsonLoose(content) || [];
+  const list = Array.isArray(parsed) ? parsed : [];
+  const ids = [];
+  for (const t of list) {
+    if (!t.name) continue;
+    const related = cards.filter(c => (t.cardTitles || []).some(n => String(c.title).includes(String(n)) || String(n).includes(String(c.title))));
+    ids.push(store.upsertTopic({
+      name: String(t.name).slice(0, 80),
+      summary: t.summary || '',
+      card_ids: related.map(c => c.id || c.title),
+      activity_count: acts.length,
+      last_seen: Date.now()
+    }));
+  }
+  return ids;
+}
+
 async function maybeAutoSummarize(cfg) {
   if (!cfg.ai?.autoSummarize || !cfg.ai?.apiKey && !String(cfg.ai?.baseUrl || '').includes('11434')) return;
   try {
@@ -170,4 +196,4 @@ async function maybeAutoSummarize(cfg) {
   }
 }
 
-module.exports = { buildDailyJournal, extractCardsFromRecent, askHistory, maybeAutoSummarize, formatActivities };
+module.exports = { buildDailyJournal, extractCardsFromRecent, askHistory, clusterTopics, maybeAutoSummarize, formatActivities };

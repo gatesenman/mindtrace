@@ -328,10 +328,20 @@ function parseMsgCitations(m) {
 async function loadChat() {
   const msgs = await window.mindtrace.getChat();
   const log = $('chat-log');
-  log.innerHTML = msgs.map(m => {
-    const cites = m.role === 'assistant' ? parseMsgCitations(m) : [];
-    return `<div class="bubble ${m.role}">${escapeHtml(m.content)}${renderCitations(cites)}</div>`;
-  }).join('') || '<div class="empty">向你的历史提问，例如：“我最近在看哪些技术资料？”</div>';
+  const sug = $('chat-suggestions');
+  if (!msgs.length) {
+    log.innerHTML = `<div class="empty chat-empty">
+      <h3>问问你的历史</h3>
+      <p>用自然语言检索日刊、卡片与时间线。开启「体验示例数据」可先看带引用的样例回答；配置 AI 后即可真实提问。</p>
+    </div>`;
+    sug?.classList.remove('hidden');
+  } else {
+    log.innerHTML = msgs.map(m => {
+      const cites = m.role === 'assistant' ? parseMsgCitations(m) : [];
+      return `<div class="bubble ${m.role}">${escapeHtml(m.content)}${renderCitations(cites)}</div>`;
+    }).join('');
+    sug?.classList.add('hidden');
+  }
   log.scrollTop = log.scrollHeight;
   bindCiteClicks(log);
 }
@@ -483,6 +493,14 @@ function bind() {
     if (r.ok) loadKnowledge();
   };
   $('btn-ask').onclick = ask;
+  document.querySelectorAll('.suggest-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const q = chip.dataset.q || chip.textContent;
+      $('chat-input').value = q;
+      // If demo mode and sample already exists, just ensure chat shows; else ask
+      ask();
+    });
+  });
   $('chat-input').onkeydown = e => { if (e.key === 'Enter') ask(); };
 
   $('btn-save-collect').onclick = async () => {
@@ -553,6 +571,7 @@ async function ask() {
   const q = $('chat-input').value.trim();
   if (!q) return;
   $('chat-input').value = '';
+  $('chat-suggestions')?.classList.add('hidden');
   const log = $('chat-log');
   log.insertAdjacentHTML('beforeend', `<div class="bubble user">${escapeHtml(q)}</div>`);
   log.insertAdjacentHTML('beforeend', `<div class="bubble assistant muted" id="thinking">正在检索你的历史…</div>`);

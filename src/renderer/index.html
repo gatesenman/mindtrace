@@ -193,8 +193,14 @@
       <section id="view-chat" class="view hidden">
         <div class="chat-wrap card">
           <div id="chat-log" class="chat-log"></div>
+          <div id="chat-suggestions" class="chat-suggestions">
+            <button type="button" class="suggest-chip" data-q="今天我和谁讨论过项目进度？">今天我和谁讨论过项目进度？</button>
+            <button type="button" class="suggest-chip" data-q="今天主要在做什么？">今天主要在做什么？</button>
+            <button type="button" class="suggest-chip" data-q="最近学到了哪些技术要点？">最近学到了哪些技术要点？</button>
+            <button type="button" class="suggest-chip" data-q="有哪些待办还没完成？">有哪些待办还没完成？</button>
+          </div>
           <div class="chat-input-row">
-            <input id="chat-input" class="input grow" placeholder="今天我和谁讨论过项目？上周读了哪些关于 Electron 的内容？" />
+            <input id="chat-input" class="input grow" placeholder="问问你的历史：今天我和谁讨论过项目？" />
             <button class="btn primary" id="btn-ask">提问</button>
           </div>
           <p class="tiny">本机 API：<code id="api-hint">http://127.0.0.1:17321</code> · 快捷键暂停：Ctrl+Shift+M</p>
