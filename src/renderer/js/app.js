@@ -126,6 +126,7 @@ function applyConfigToForm() {
   $('api-token').value = c.api.token || '';
   $('ob-ai-base').value = c.ai.baseUrl || '';
   $('ob-ai-model').value = c.ai.model || '';
+  if ($('ob-ai-vision')) $('ob-ai-vision').value = c.ai.visionModel || '';
 }
 
 function showView(name) {
@@ -408,7 +409,12 @@ function bind() {
   $('ob-skip3').onclick = () => showObStep(4);
   $('ob-next3').onclick = async () => {
     const key = $('ob-ai-key').value.trim();
-    const patch = { ai: { provider: $('ob-ai-preset').value, baseUrl: $('ob-ai-base').value.trim(), model: $('ob-ai-model').value.trim() } };
+    const patch = { ai: {
+      provider: $('ob-ai-preset').value,
+      baseUrl: $('ob-ai-base').value.trim(),
+      model: $('ob-ai-model').value.trim(),
+      visionModel: ($('ob-ai-vision') && $('ob-ai-vision').value.trim()) || ''
+    } };
     if (key) patch.ai.apiKey = key;
     await window.mindtrace.setConfig(patch);
     showObStep(4);
@@ -542,6 +548,7 @@ function bind() {
         provider: $('ai-preset').value,
         baseUrl: $('ai-base').value.trim(),
         model: $('ai-model').value.trim(),
+        visionModel: ($('ai-vision') && $('ai-vision').value.trim()) || '',
         autoSummarize: $('ai-auto').checked,
         summarizeIntervalMin: Number($('ai-interval').value) || 60
       }

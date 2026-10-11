@@ -46,12 +46,15 @@ function purgeOld(retainDays) {
 function canUseVision(cfg) {
   const ai = cfg.ai || {};
   const base = String(ai.baseUrl || '');
+  const model = String(ai.visionModel || ai.model || '').trim();
+  // No model configured → skip OCR quietly (screenshot file still saved)
+  if (!model) return false;
   if (!ai.apiKey && !base.includes('11434') && !base.includes('localhost') && !base.includes('127.0.0.1')) {
     return false;
   }
-  // visionModel preferred; otherwise allow if user set a known multimodal model name
-  const m = (ai.visionModel || ai.model || '').toLowerCase();
-  if (ai.visionModel) return true;
+  // visionModel preferred; otherwise allow known multimodal names or local endpoints
+  if (ai.visionModel && String(ai.visionModel).trim()) return true;
+  const m = model.toLowerCase();
   if (/127\.0\.0\.1|localhost/.test(base)) return true;
   return /gpt-4o|gpt-4\.1|vision|qwen-vl|qwen2-vl|llava|moondream|gemini|glm-4v|internvl|mock/.test(m);
 }

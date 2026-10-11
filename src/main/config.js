@@ -29,7 +29,9 @@ const DEFAULTS = {
     autoRedact: true,
     pauseHotkey: 'CommandOrControl+Shift+M',
     onlyScreenshotApps: ['WeChat', 'WXWork', 'Feishu', 'DingTalk', '微信', '企业微信', '飞书', '钉钉'],
-    screenshotRetainDays: 14
+    screenshotRetainDays: 14,
+    activityRetainDays: 90,
+    chatMaxMessages: 500
   },
   watchFolders: [],
   ai: {

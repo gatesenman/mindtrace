@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS activities (
 CREATE INDEX IF NOT EXISTS idx_act_started ON activities(started_at);
 CREATE INDEX IF NOT EXISTS idx_act_type ON activities(type);
 CREATE INDEX IF NOT EXISTS idx_act_app ON activities(app_name);
+CREATE INDEX IF NOT EXISTS idx_act_type_started ON activities(type, started_at);
+CREATE INDEX IF NOT EXISTS idx_act_url ON activities(url);
 
 CREATE TABLE IF NOT EXISTS screenshots (
   id TEXT PRIMARY KEY,
@@ -89,6 +91,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   citations TEXT,
   created_at INTEGER NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_chat_created ON chat_messages(created_at);
 `;
 
 async function initStore() {
@@ -123,6 +126,8 @@ function persist(force = false) {
     fs.renameSync(tmp, dbPath);
     dirty = false;
     lastPersistAt = Date.now();
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (forceTimer) { clearTimeout(forceTimer); forceTimer = null; }
   } catch (e) {
     console.error('persist', e.message);
   }
@@ -138,6 +143,46 @@ function schedulePersist() {
       if (dirty) persist(true);
     }, PERSIST_MAX_WAIT_MS);
   }
+}
+
+/**
+ * sql.js keeps the whole DB in memory; prune keeps growth bounded.
+ * Architectural limit: very large histories still require loading full file on startup.
+ */
+function pruneOldData(opts = {}) {
+  if (!db) return { ok: false };
+  const activityDays = Math.max(7, opts.activityRetainDays || 90);
+  const screenshotDays = Math.max(1, opts.screenshotRetainDays || 14);
+  const chatMax = Math.max(50, opts.chatMax || 500);
+  const now = Date.now();
+  const cutoffAct = now - activityDays * 86400000;
+  const cutoffSs = now - screenshotDays * 86400000;
+  let deleted = { activities: 0, screenshots: 0, chat: 0 };
+  try {
+    const beforeA = get(`SELECT COUNT(*) as c FROM activities WHERE started_at<?`, [cutoffAct]);
+    run(`DELETE FROM activities WHERE started_at<?`, [cutoffAct]);
+    deleted.activities = beforeA?.c || 0;
+    const beforeS = get(`SELECT COUNT(*) as c FROM screenshots WHERE taken_at<?`, [cutoffSs]);
+    run(`DELETE FROM screenshots WHERE taken_at<?`, [cutoffSs]);
+    deleted.screenshots = beforeS?.c || 0;
+    const chatCnt = get(`SELECT COUNT(*) as c FROM chat_messages`);
+    if (chatCnt && chatCnt.c > chatMax) {
+      const keep = all(`SELECT id FROM chat_messages ORDER BY created_at DESC LIMIT ?`, [chatMax]).map(r => r.id);
+      if (keep.length) {
+        const placeholders = keep.map(() => '?').join(',');
+        const beforeC = chatCnt.c;
+        // delete outside keep set
+        db.run(`DELETE FROM chat_messages WHERE id NOT IN (${placeholders})`, keep);
+        schedulePersist();
+        deleted.chat = Math.max(0, beforeC - keep.length);
+      }
+    }
+    if (deleted.activities || deleted.screenshots || deleted.chat) persist(true);
+  } catch (e) {
+    console.error('pruneOldData', e.message);
+    return { ok: false, error: e.message, deleted };
+  }
+  return { ok: true, deleted, activityDays, screenshotDays, chatMax };
 }
 
 function run(sql, params = []) {
@@ -390,7 +435,7 @@ function getDbPath() { return dbPath; }
 function closeStore() { if (db) { persist(true); db.close(); db = null; } }
 
 module.exports = {
-  initStore, persist, closeStore, getDbPath,
+  initStore, persist, closeStore, getDbPath, pruneOldData,
   run, all, get,
   insertActivity, updateActivityEnd, insertScreenshot, updateScreenshotDescription,
   upsertKnowledgeCard, upsertJournal, addChatMessage,

@@ -1,5 +1,5 @@
 const {
-  app, BrowserWindow, Tray, Menu, nativeImage, ipcMain,
+  app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen,
   clipboard, desktopCapturer, dialog, shell, globalShortcut
 } = require('electron');
 const path = require('path');
@@ -158,13 +158,40 @@ function createWindow() {
 }
 
 function trayIcon() {
-  const p = path.join(__dirname, '../../assets/icon-32.png');
-  if (fs.existsSync(p)) return nativeImage.createFromPath(p);
-  return nativeImage.createEmpty();
+  let factor = 1;
+  try {
+    factor = screen.getPrimaryDisplay()?.scaleFactor || 1;
+  } catch (_) {}
+  // Windows tray: ~16px logical; HiDPI needs scaleFactor×16 physical pixels
+  const target = Math.max(16, Math.round(16 * factor));
+  const assets = path.join(__dirname, '../../assets');
+  let srcName = 'icon-32.png';
+  if (target > 64) srcName = 'icon-128.png';
+  else if (target > 32) srcName = 'icon-64.png';
+  const p = path.join(assets, srcName);
+  const fallback = path.join(assets, 'icon-32.png');
+  const use = fs.existsSync(p) ? p : (fs.existsSync(fallback) ? fallback : null);
+  if (!use) return nativeImage.createEmpty();
+  let img = nativeImage.createFromPath(use);
+  if (img.isEmpty()) return img;
+  const { width, height } = img.getSize();
+  if (width !== target || height !== target) {
+    img = img.resize({ width: target, height: target, quality: 'best' });
+  }
+  return img;
+}
+
+function refreshTrayImage() {
+  if (!tray) return;
+  try { tray.setImage(trayIcon()); } catch (e) { console.error('tray image', e.message); }
 }
 
 function buildTray() {
   tray = new Tray(trayIcon());
+  try {
+    screen.removeAllListeners('display-metrics-changed');
+    screen.on('display-metrics-changed', () => refreshTrayImage());
+  } catch (_) {}
   const update = () => {
     const paused = !!config.privacy?.paused;
     const menu = Menu.buildFromTemplate([
@@ -526,6 +553,22 @@ app.whenReady().then(async () => {
     saveConfig(config);
   }
   await store.initStore();
+  try {
+    store.pruneOldData({
+      activityRetainDays: config.privacy?.activityRetainDays || 90,
+      screenshotRetainDays: config.privacy?.screenshotRetainDays || 14,
+      chatMax: config.privacy?.chatMaxMessages || 500
+    });
+  } catch (e) { appendLog('WARN', 'prune', e); }
+  setInterval(() => {
+    try {
+      store.pruneOldData({
+        activityRetainDays: config.privacy?.activityRetainDays || 90,
+        screenshotRetainDays: config.privacy?.screenshotRetainDays || 14,
+        chatMax: config.privacy?.chatMaxMessages || 500
+      });
+    } catch (e) { console.error('prune', e.message); }
+  }, 6 * 3600 * 1000);
   if (config.demoMode) seedDemoData();
   registerIpc();
   createWindow();

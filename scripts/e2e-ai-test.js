@@ -152,6 +152,23 @@ app.whenReady().then(async () => {
     const vparsed = parseJsonLoose(vision.content);
     pass('vision-json', !!(vparsed && vparsed.app_guess), vision.content.slice(0, 120));
 
+    // empty visionModel: client should throw clear Chinese error (collector guards before call)
+    let emptyVisionOk = false;
+    try {
+      const cfgNoVision = { ...config, ai: { ...config.ai, visionModel: '', model: '' } };
+      await visionDescribe(cfgNoVision, tmpPng, 'x');
+    } catch (e) {
+      emptyVisionOk = /视觉模型|visionModel|未配置/.test(String(e.message || e));
+    }
+    pass('vision-empty-no-crash', emptyVisionOk, 'clear error when no vision model');
+
+    // prune retention
+    const oldTs = Date.now() - 120 * 86400000;
+    store.insertActivity({ type: 'window', started_at: oldTs, ended_at: oldTs, app_name: 'OldApp', window_title: 'stale' });
+    store.insertScreenshot({ taken_at: oldTs, file_path: '/tmp/old-shot.png' });
+    const pruned = store.pruneOldData({ activityRetainDays: 90, screenshotRetainDays: 14, chatMax: 500 });
+    pass('prune-old-data', !!(pruned && pruned.ok && (pruned.deleted.activities >= 1 || pruned.deleted.screenshots >= 1)), JSON.stringify(pruned));
+
     // Local API
     apiServer.start({ getConfig: () => config });
     await new Promise(r => setTimeout(r, 300));

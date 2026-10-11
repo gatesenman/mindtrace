@@ -33,7 +33,7 @@
             <label><input type="checkbox" id="ob-c-browser" /><div><div class="name">浏览器历史</div><div class="desc">读取 Chrome / Edge 本地历史（只读副本）</div></div></label>
             <label><input type="checkbox" id="ob-c-documents" /><div><div class="name">文档与笔记</div><div class="desc">关注最近打开或修改的文档、笔记、电子书</div></div></label>
             <label><input type="checkbox" id="ob-c-clipboard" /><div><div class="name">剪贴板</div><div class="desc">记录文本与链接（自动脱敏敏感信息）</div></div></label>
-            <label><input type="checkbox" id="ob-c-screenshots" /><div><div class="name">定时截屏 + AI 识图</div><div class="desc">用于微信等不便读库的软件；本地保存</div></div></label>
+            <label><input type="checkbox" id="ob-c-screenshots" /><div><div class="name">定时截屏 + AI 识图</div><div class="desc">用于微信等不便读库的软件；本地保存。识图需下一步填写多模态视觉模型</div></div></label>
           </div>
           <p class="legal">数据默认仅保存在本机。截屏与剪贴板可能包含敏感信息，请按需开启并配置黑名单。知迹不会在未授权时采集。</p>
           <div class="row gap">
@@ -51,6 +51,9 @@
             <div class="field"><label>模型</label><input id="ob-ai-model" class="input" /></div>
           </div>
           <div class="field"><label>API Key</label><input id="ob-ai-key" class="input" type="password" placeholder="sk-…" /></div>
+          <div class="field"><label>视觉模型（截屏 OCR / 识图，可空）</label><input id="ob-ai-vision" class="input" placeholder="gpt-4o / qwen-vl-plus / llava" />
+            <p class="tiny">截屏识图需要<strong>多模态视觉模型</strong>。普通对话模型（如 deepseek-chat）无法看图；留空时截屏仍会保存，只是没有 AI 描述，也不会报错崩溃。</p>
+          </div>
           <div class="row gap">
             <button class="btn ghost" id="ob-back3">上一步</button>
             <button class="btn" id="ob-test">测试连接</button>
@@ -219,7 +222,7 @@
             <label class="switch"><input type="checkbox" id="c-browser" /><span>浏览器历史（Chrome / Edge 多配置档副本）</span></label>
             <label class="switch"><input type="checkbox" id="c-documents" /><span>文档与笔记（文件夹关注）</span></label>
             <label class="switch"><input type="checkbox" id="c-clipboard" /><span>剪贴板文本</span></label>
-            <label class="switch"><input type="checkbox" id="c-screenshots" /><span>定时截屏（覆盖微信等场景）</span></label>
+            <label class="switch"><input type="checkbox" id="c-screenshots" /><span>定时截屏（覆盖微信等场景；识图需在设置中配置视觉模型）</span></label>
             <div class="field"><label>截屏间隔（秒）</label><input type="number" id="shot-interval" class="input" min="30" max="3600" /></div>
             <div class="field"><label>空闲判定（秒）</label><input type="number" id="idle-threshold" class="input" min="60" max="3600" /></div>
             <button class="btn" id="btn-capture">立即截一张</button>
@@ -247,7 +250,9 @@
             <div class="field"><label>模型</label><input id="ai-model" class="input" placeholder="deepseek-chat" /></div>
           </div>
           <div class="field"><label>API Key</label><input id="ai-key" class="input" type="password" placeholder="sk-…" /></div>
-          <div class="field"><label>视觉模型（截屏识图，可空）</label><input id="ai-vision" class="input" placeholder="gpt-4o-mini / qwen-vl-plus / llava" /></div>
+          <div class="field"><label>视觉模型（截屏 OCR / 识图，可空）</label><input id="ai-vision" class="input" placeholder="gpt-4o / gpt-4o-mini / qwen-vl-plus / llava" />
+            <p class="tiny">须为支持图像输入的多模态模型（如 <code>gpt-4o</code>、<code>qwen-vl-plus</code>、<code>llava</code>）。未填写时截屏照常保存，跳过识图，不会崩溃。DeepSeek 等纯文本模型请另填视觉模型。</p>
+          </div>
           <div class="grid two">
             <label class="switch"><input type="checkbox" id="ai-auto" /><span>自动提炼知识卡片</span></label>
             <div class="field"><label>自动间隔（分钟）</label><input type="number" id="ai-interval" class="input" min="15" /></div>
