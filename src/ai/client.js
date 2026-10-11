@@ -10,12 +10,10 @@ async function chatCompletion(cfg, messages, options = {}) {
   const body = {
     model: options.model || ai.model || 'deepseek-chat',
     messages,
-    temperature: options.temperature ?? 0.4,
+    temperature: options.temperature ?? (ai.temperature ?? 0.3),
     max_tokens: options.max_tokens || 2000
   };
-  const headers = {
-    'Content-Type': 'application/json'
-  };
+  const headers = { 'Content-Type': 'application/json' };
   if (ai.apiKey) headers['Authorization'] = `Bearer ${ai.apiKey}`;
 
   const res = await fetch(url, {
@@ -33,6 +31,32 @@ async function chatCompletion(cfg, messages, options = {}) {
   return { content, raw: data };
 }
 
+/** OpenAI-compatible vision: image as data URL in user content parts */
+async function visionDescribe(cfg, imagePathOrBuffer, prompt, options = {}) {
+  const fs = require('fs');
+  const ai = cfg.ai || {};
+  const model = options.model || ai.visionModel || ai.model;
+  if (!model) throw new Error('未配置视觉模型（AI 设置中的 visionModel 或 model）');
+
+  let b64;
+  if (Buffer.isBuffer(imagePathOrBuffer)) {
+    b64 = imagePathOrBuffer.toString('base64');
+  } else {
+    b64 = fs.readFileSync(imagePathOrBuffer).toString('base64');
+  }
+  const dataUrl = `data:image/png;base64,${b64}`;
+  const messages = [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: dataUrl } }
+      ]
+    }
+  ];
+  return chatCompletion(cfg, messages, { ...options, model, max_tokens: options.max_tokens || 800 });
+}
+
 function parseJsonLoose(text) {
   if (!text) return null;
   let s = text.trim();
@@ -43,7 +67,6 @@ function parseJsonLoose(text) {
   if (start >= 0) {
     const chunk = s.slice(start);
     try { return JSON.parse(chunk); } catch (_) {}
-    // try trim trailing
     for (let i = chunk.length; i > 10; i--) {
       try { return JSON.parse(chunk.slice(0, i)); } catch (_) {}
     }
@@ -60,4 +83,4 @@ function applyPreset(cfg, name) {
   return cfg;
 }
 
-module.exports = { chatCompletion, parseJsonLoose, applyPreset, PRESETS };
+module.exports = { chatCompletion, visionDescribe, parseJsonLoose, applyPreset, PRESETS };

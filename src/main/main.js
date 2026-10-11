@@ -311,8 +311,10 @@ function registerIpc() {
 
   ipcMain.handle('ask', async (_e, q) => {
     try {
-      const answer = await summarizer.askHistory(config, q);
-      return { ok: true, answer };
+      const result = await summarizer.askHistory(config, q);
+      const answer = typeof result === 'string' ? result : result.answer;
+      const citations = typeof result === 'string' ? [] : (result.citations || []);
+      return { ok: true, answer, citations };
     } catch (e) {
       return { ok: false, error: e.message };
     }

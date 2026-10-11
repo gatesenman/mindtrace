@@ -115,7 +115,7 @@
         <div class="grid stats">
           <div class="card stat"><div class="label">专注时长</div><div class="value" id="stat-time">0 分钟</div></div>
           <div class="card stat"><div class="label">活动条数</div><div class="value" id="stat-acts">0</div></div>
-          <div class="card stat"><div class="label">浏览相关</div><div class="value" id="stat-browse">0</div></div>
+          <div class="card stat"><div class="label">浏览页面</div><div class="value" id="stat-browse">0</div></div>
           <div class="card stat"><div class="label">知识卡片</div><div class="value" id="stat-cards">0</div></div>
         </div>
         <div class="grid two">
@@ -215,6 +215,7 @@
             <div class="field"><label>模型</label><input id="ai-model" class="input" placeholder="deepseek-chat" /></div>
           </div>
           <div class="field"><label>API Key</label><input id="ai-key" class="input" type="password" placeholder="sk-…" /></div>
+          <div class="field"><label>视觉模型（截屏识图，可空）</label><input id="ai-vision" class="input" placeholder="gpt-4o-mini / qwen-vl-plus / llava" /></div>
           <div class="grid two">
             <label class="switch"><input type="checkbox" id="ai-auto" /><span>自动提炼知识卡片</span></label>
             <div class="field"><label>自动间隔（分钟）</label><input type="number" id="ai-interval" class="input" min="15" /></div>

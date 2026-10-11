@@ -45,10 +45,14 @@ ${activities}`,
 
   chatWithHistory: (question, context) => `用户问题：${question}
 
-以下是与问题相关的个人历史上下文（可能不完整）：
+以下是与问题相关的个人历史上下文。每条活动前有引用编号如 [E1]、[C2]、[J1]。
 ${context}
 
-请基于上下文用简体中文回答。若信息不足，说明还缺什么。回答简洁、结构化，可给用户直接复用。`,
+请基于上下文用简体中文回答。要求：
+1. 回答简洁、结构化。
+2. 在关键论断后用引用编号标注来源，例如……[E3][C1]。
+3. 最后单独一行输出：CITATIONS: E1,C2 （只列你真正用到的编号，逗号分隔；若无则 CITATIONS: none）
+4. 若信息不足，说明还缺什么。`,
 
   clusterTopics: (cardsAndActs) => `请将以下知识卡片与活动聚类为 3–12 个主题项目，输出 JSON：
 [{"name":"","summary":"","cardTitles":[],"keywords":[]}]

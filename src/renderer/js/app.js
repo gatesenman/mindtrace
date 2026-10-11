@@ -113,6 +113,7 @@ function applyConfigToForm() {
   $('ai-model').value = c.ai.model || '';
   $('ai-key').value = '';
   $('ai-key').placeholder = state.configRawKeySet ? '已保存（输入新值可覆盖）' : 'sk-…';
+  $('ai-vision') && ($('ai-vision').value = c.ai.visionModel || '');
   $('ai-auto').checked = !!c.ai.autoSummarize;
   $('ai-interval').value = c.ai.summarizeIntervalMin || 60;
   $('api-enabled').checked = !!c.api.enabled;
@@ -140,8 +141,7 @@ async function loadDashboard() {
   const stats = await window.mindtrace.getTodayStats();
   $('stat-time').textContent = fmtMin(stats.totalMs);
   $('stat-acts').textContent = stats.activityCount;
-  const browse = (stats.appBreakdown || []).filter(a => /chrome|edge|浏览/i.test(a.app_name || '')).reduce((s, a) => s + (a.cnt || 0), 0);
-  $('stat-browse').textContent = browse || stats.screenshotsToday || 0;
+  $('stat-browse').textContent = stats.browserCount || 0;
   $('stat-cards').textContent = stats.cardsToday;
 
   const max = Math.max(1, ...(stats.appBreakdown || []).map(a => a.total_ms || 0));
@@ -207,12 +207,46 @@ async function loadKnowledge() {
   `).join('') || '<div class="empty">暂无日刊</div>';
 }
 
+function renderCitations(cites) {
+  if (!cites || !cites.length) return '';
+  return `<div class="cite-list">${cites.map(c => {
+    const label = escapeHtml((c.label || c.key || '').slice(0, 48));
+    const key = escapeHtml(c.key || '');
+    const id = escapeHtml(c.id || '');
+    const started = c.started_at || '';
+    return `<button type="button" class="cite-chip" data-cite-id="${id}" data-started="${started}" title="${label}"><span class="k">${key}</span>${label}</button>`;
+  }).join('')}</div>`;
+}
+
+function parseMsgCitations(m) {
+  if (!m.citations) return [];
+  if (Array.isArray(m.citations)) return m.citations;
+  try { return JSON.parse(m.citations); } catch { return []; }
+}
+
 async function loadChat() {
   const msgs = await window.mindtrace.getChat();
   const log = $('chat-log');
-  log.innerHTML = msgs.map(m => `<div class="bubble ${m.role}">${escapeHtml(m.content)}</div>`).join('')
-    || '<div class="empty">向你的历史提问，例如：“我最近在看哪些技术资料？”</div>';
+  log.innerHTML = msgs.map(m => {
+    const cites = m.role === 'assistant' ? parseMsgCitations(m) : [];
+    return `<div class="bubble ${m.role}">${escapeHtml(m.content)}${renderCitations(cites)}</div>`;
+  }).join('') || '<div class="empty">向你的历史提问，例如：“我最近在看哪些技术资料？”</div>';
   log.scrollTop = log.scrollHeight;
+  bindCiteClicks(log);
+}
+
+function bindCiteClicks(root) {
+  root.querySelectorAll('.cite-chip').forEach(btn => {
+    btn.onclick = () => {
+      const started = Number(btn.dataset.started || 0);
+      showView('timeline');
+      if (started) {
+        $('tl-q').value = btn.title || '';
+        setTimeout(() => loadTimeline(), 50);
+      }
+      toast('已跳到时间线（可按引用关键词查看）');
+    };
+  });
 }
 
 function readObCollectors() {
@@ -381,7 +415,15 @@ async function ask() {
   log.scrollTop = log.scrollHeight;
   const r = await window.mindtrace.ask(q);
   $('thinking')?.remove();
-  log.insertAdjacentHTML('beforeend', `<div class="bubble assistant">${escapeHtml(r.ok ? r.answer : ('错误：' + r.error))}</div>`);
+  if (!r.ok) {
+    log.insertAdjacentHTML('beforeend', `<div class="bubble assistant">${escapeHtml('错误：' + r.error)}</div>`);
+  } else {
+    const wrap = document.createElement('div');
+    wrap.className = 'bubble assistant';
+    wrap.innerHTML = `${escapeHtml(r.answer)}${renderCitations(r.citations || [])}`;
+    log.appendChild(wrap);
+    bindCiteClicks(wrap);
+  }
   log.scrollTop = log.scrollHeight;
 }
 

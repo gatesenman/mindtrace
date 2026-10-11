@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   id TEXT PRIMARY KEY,
   role TEXT NOT NULL,
   content TEXT NOT NULL,
+  citations TEXT,
   created_at INTEGER NOT NULL
 );
 `;
@@ -99,19 +100,42 @@ async function initStore() {
     db = new SQL.Database();
   }
   db.run(SCHEMA);
-  persist();
+  dirty = true;
+  persist(true);
   return db;
 }
 
-function persist() {
+let dirty = false;
+let lastPersistAt = 0;
+let forceTimer = null;
+const PERSIST_DEBOUNCE_MS = 4000;
+const PERSIST_MAX_WAIT_MS = 20000;
+
+function persist(force = false) {
   if (!db || !dbPath) return;
-  const data = db.export();
-  fs.writeFileSync(dbPath, Buffer.from(data));
+  if (!dirty && !force) return;
+  try {
+    const data = db.export();
+    const tmp = dbPath + '.tmp';
+    fs.writeFileSync(tmp, Buffer.from(data));
+    fs.renameSync(tmp, dbPath);
+    dirty = false;
+    lastPersistAt = Date.now();
+  } catch (e) {
+    console.error('persist', e.message);
+  }
 }
 
 function schedulePersist() {
+  dirty = true;
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(persist, 800);
+  saveTimer = setTimeout(() => persist(false), PERSIST_DEBOUNCE_MS);
+  if (!forceTimer) {
+    forceTimer = setTimeout(() => {
+      forceTimer = null;
+      if (dirty) persist(true);
+    }, PERSIST_MAX_WAIT_MS);
+  }
 }
 
 function run(sql, params = []) {
@@ -171,6 +195,19 @@ function insertScreenshot(row) {
     [id, row.taken_at || now, row.file_path, row.app_name || null, row.window_title || null, row.description || null, row.ocr_text || null, now]
   );
   return id;
+}
+
+function updateScreenshotDescription(id, description, ocrText) {
+  run(`UPDATE screenshots SET description=?, ocr_text=COALESCE(?, ocr_text) WHERE id=?`, [
+    description || null,
+    ocrText || null,
+    id
+  ]);
+  // also mirror into related activity content for retrieval
+  run(`UPDATE activities SET content=? WHERE type='screenshot' AND meta LIKE ?`, [
+    description || null,
+    `%"screenshotId":"${id}"%`
+  ]);
 }
 
 function upsertKnowledgeCard(card) {
@@ -234,9 +271,13 @@ function upsertJournal(j) {
   return id;
 }
 
-function addChatMessage(role, content) {
+function addChatMessage(role, content, citations) {
   const id = crypto.randomUUID();
-  run(`INSERT INTO chat_messages (id,role,content,created_at) VALUES (?,?,?,?)`, [id, role, content, Date.now()]);
+  // migrate column if older DB
+  try { db.run(`ALTER TABLE chat_messages ADD COLUMN citations TEXT`); } catch (_) {}
+  run(`INSERT INTO chat_messages (id,role,content,citations,created_at) VALUES (?,?,?,?,?)`, [
+    id, role, content, citations ? JSON.stringify(citations) : null, Date.now()
+  ]);
   return id;
 }
 
@@ -264,22 +305,25 @@ function getTodayStats() {
   const totals = get(`SELECT COUNT(*) as c, COALESCE(SUM(duration_ms),0) as ms FROM activities WHERE started_at>=?`, [from]);
   const cards = get(`SELECT COUNT(*) as c FROM knowledge_cards WHERE created_at>=?`, [from]);
   const shots = get(`SELECT COUNT(*) as c FROM screenshots WHERE taken_at>=?`, [from]);
+  const browser = get(`SELECT COUNT(*) as c FROM activities WHERE type='browser' AND started_at>=?`, [from]);
+  const focus = get(`SELECT COALESCE(SUM(duration_ms),0) as ms FROM activities WHERE type='window' AND started_at>=?`, [from]);
   return {
     appBreakdown: acts,
     activityCount: totals?.c || 0,
-    totalMs: totals?.ms || 0,
+    totalMs: focus?.ms || totals?.ms || 0,
     cardsToday: cards?.c || 0,
-    screenshotsToday: shots?.c || 0
+    screenshotsToday: shots?.c || 0,
+    browserCount: browser?.c || 0
   };
 }
 
 function getDbPath() { return dbPath; }
-function closeStore() { if (db) { persist(); db.close(); db = null; } }
+function closeStore() { if (db) { persist(true); db.close(); db = null; } }
 
 module.exports = {
   initStore, persist, closeStore, getDbPath,
   run, all, get,
-  insertActivity, updateActivityEnd, insertScreenshot,
+  insertActivity, updateActivityEnd, insertScreenshot, updateScreenshotDescription,
   upsertKnowledgeCard, upsertJournal, addChatMessage,
   searchActivities, getTodayStats
 };

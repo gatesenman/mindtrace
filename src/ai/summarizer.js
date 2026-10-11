@@ -94,7 +94,6 @@ async function extractCardsFromRecent(cfg, hours = 6) {
 
 async function askHistory(cfg, question) {
   const q = question.trim();
-  // naive retrieval
   const acts = store.searchActivities({ q, limit: 40 });
   const cards = store.all(
     `SELECT * FROM knowledge_cards WHERE title LIKE ? OR summary LIKE ? OR content LIKE ? ORDER BY updated_at DESC LIMIT 20`,
@@ -104,15 +103,35 @@ async function askHistory(cfg, question) {
     `SELECT * FROM journals WHERE title LIKE ? OR content LIKE ? ORDER BY created_at DESC LIMIT 5`,
     [`%${q}%`, `%${q}%`]
   );
-  // if keyword miss, take recent
   const recent = acts.length ? acts : store.all(`SELECT * FROM activities ORDER BY started_at DESC LIMIT 40`);
+
+  const citationIndex = {};
+  const actLines = recent.slice(0, 40).map((a, i) => {
+    const key = `E${i + 1}`;
+    citationIndex[key] = {
+      key, kind: 'activity', id: a.id, type: a.type,
+      label: `${a.app_name || ''} ${a.window_title || a.url || ''}`.trim().slice(0, 80),
+      started_at: a.started_at, url: a.url || null, file_path: a.file_path || null
+    };
+    const t = dayjs(a.started_at).format('HH:mm');
+    const snippet = a.content ? String(a.content).slice(0, 100).replace(/\s+/g, ' ') : '';
+    return `[${key}] ${t} ${a.type} | ${a.app_name || ''} | ${a.window_title || ''} | ${a.url || a.file_path || ''} | ${snippet}`;
+  });
+  const cardLines = cards.map((c, i) => {
+    const key = `C${i + 1}`;
+    citationIndex[key] = { key, kind: 'card', id: c.id, type: c.kind, label: c.title, summary: c.summary };
+    return `[${key}] [${c.kind}] ${c.title}: ${c.summary || ''}`;
+  });
+  const journalLines = journals.map((j, i) => {
+    const key = `J${i + 1}`;
+    citationIndex[key] = { key, kind: 'journal', id: j.id, type: 'daily', label: `${j.period_key} ${j.title || ''}`, period_key: j.period_key };
+    return `[${key}] ${j.period_key} ${j.title}: ${(j.content || '').slice(0, 200)}`;
+  });
+
   const context = [
-    '## 知识卡片',
-    ...cards.map(c => `- [${c.kind}] ${c.title}: ${c.summary || ''}`),
-    '## 日志',
-    ...journals.map(j => `- ${j.period_key} ${j.title}: ${(j.content || '').slice(0, 200)}`),
-    '## 活动',
-    formatActivities(recent, 40)
+    '## 知识卡片', ...cardLines,
+    '## 日刊', ...journalLines,
+    '## 活动（时间线）', ...actLines
   ].join('\n');
 
   store.addChatMessage('user', q);
@@ -120,8 +139,26 @@ async function askHistory(cfg, question) {
     { role: 'system', content: prompts.systemKnowledge },
     { role: 'user', content: prompts.chatWithHistory(q, context) }
   ], { max_tokens: 2500 });
-  store.addChatMessage('assistant', content);
-  return content;
+
+  let answer = content;
+  let used = [];
+  const m = content.match(/CITATIONS:\s*([^\n]+)/i);
+  if (m) {
+    answer = content.replace(/\n?CITATIONS:\s*[^\n]+/i, '').trim();
+    const raw = m[1].trim();
+    if (!/^none$/i.test(raw)) {
+      used = raw.split(/[,，\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean)
+        .map(k => citationIndex[k] || citationIndex[k.replace(/^\[|\]$/g, '')])
+        .filter(Boolean);
+    }
+  }
+  // fallback: collect markers appearing in answer
+  if (!used.length) {
+    const found = [...answer.matchAll(/\[([ECJ]\d+)\]/g)].map(x => x[1].toUpperCase());
+    used = [...new Set(found)].map(k => citationIndex[k]).filter(Boolean);
+  }
+  store.addChatMessage('assistant', answer, used);
+  return { answer, citations: used };
 }
 
 async function maybeAutoSummarize(cfg) {

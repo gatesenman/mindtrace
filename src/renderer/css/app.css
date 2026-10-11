@@ -279,3 +279,12 @@ body.theme-light {
 .kcard.kind-learning .kind { color: var(--card-learning); background: rgba(5,150,105,.12); }
 .kcard.kind-todo .kind { color: var(--card-todo); background: rgba(217,119,6,.12); }
 .kcard.kind-link .kind { color: var(--card-link); background: rgba(8,145,178,.12); }
+
+.cite-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.cite-chip {
+  border: 1px solid var(--border); background: var(--bg-elevated); color: var(--brand);
+  border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cite-chip:hover { border-color: var(--brand); background: var(--brand-soft); }
+.cite-chip .k { font-weight: 700; margin-right: 4px; }
