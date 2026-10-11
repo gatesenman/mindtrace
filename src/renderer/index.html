@@ -98,6 +98,7 @@
     </aside>
 
     <main class="main">
+      <div id="demo-banner" class="demo-banner hidden">当前为<strong>体验示例数据</strong>，便于预览界面效果；关闭「采集中心 → 体验示例数据」可清除。</div>
       <header class="topbar">
         <div>
           <div class="greeting" id="greeting"></div>
@@ -105,7 +106,7 @@
           <p class="muted" id="view-sub">把今天的忙碌，变成可复用的资产</p>
         </div>
         <div class="top-actions">
-          <button class="btn" id="btn-seed">填充示例</button>
+          <button class="btn" id="btn-seed" title="开关体验示例数据">体验示例数据</button>
           <button class="btn" id="btn-export">导出知识库</button>
           <button class="btn primary" id="btn-summarize">生成本日摘要</button>
         </div>
@@ -152,21 +153,40 @@
 
       <section id="view-knowledge" class="view hidden">
         <div class="toolbar">
-          <div class="chips" id="kind-chips">
-            <button class="chip active" data-kind="">全部</button>
-            <button class="chip" data-kind="project">项目</button>
-            <button class="chip" data-kind="learning">所学</button>
-            <button class="chip" data-kind="person">人物</button>
-            <button class="chip" data-kind="todo">待办</button>
-            <button class="chip" data-kind="link">链接</button>
-            <button class="chip" data-kind="note">笔记</button>
+          <div class="chips" id="knowledge-tabs">
+            <button class="chip active" data-ktab="journals">日刊</button>
+            <button class="chip" data-ktab="topics">主题</button>
+            <button class="chip" data-ktab="cards">卡片</button>
           </div>
           <button class="btn primary" id="btn-extract">从近况提炼卡片</button>
         </div>
-        <div id="cards-grid" class="cards-grid"></div>
-        <div class="card" style="margin-top:16px">
-          <div class="card-head"><h3>日刊</h3></div>
+        <div id="ktab-journals" class="ktab">
           <div id="journals-list" class="list"></div>
+        </div>
+        <div id="ktab-topics" class="ktab hidden">
+          <div id="topics-grid" class="cards-grid"></div>
+        </div>
+        <div id="ktab-cards" class="ktab hidden">
+          <div class="toolbar">
+            <input id="card-q" class="input grow" placeholder="搜索卡片…" />
+            <div class="chips" id="kind-chips">
+              <button class="chip active" data-kind="">全部</button>
+              <button class="chip" data-kind="project">项目</button>
+              <button class="chip" data-kind="learning">所学</button>
+              <button class="chip" data-kind="person">人物</button>
+              <button class="chip" data-kind="todo">待办</button>
+              <button class="chip" data-kind="link">链接</button>
+              <button class="chip" data-kind="note">笔记</button>
+            </div>
+          </div>
+          <div id="cards-grid" class="cards-grid"></div>
+        </div>
+        <div id="detail-drawer" class="drawer hidden">
+          <div class="drawer-card">
+            <div class="card-head"><h3 id="detail-title">详情</h3><button class="btn sm" id="detail-close">关闭</button></div>
+            <div id="detail-meta" class="tiny"></div>
+            <div id="detail-body" class="journal-box"></div>
+          </div>
         </div>
       </section>
 
@@ -182,11 +202,15 @@
       </section>
 
       <section id="view-collect" class="view hidden">
+        <div class="card">
+          <div class="card-head"><h3>采集器状态</h3><button class="btn sm" id="btn-refresh-status">刷新</button></div>
+          <div id="collector-status-list" class="list"></div>
+        </div>
         <div class="grid two">
           <div class="card">
             <h3>采集开关</h3>
             <label class="switch"><input type="checkbox" id="c-window" /><span>窗口与应用时间线</span></label>
-            <label class="switch"><input type="checkbox" id="c-browser" /><span>浏览器历史（Chrome / Edge 副本）</span></label>
+            <label class="switch"><input type="checkbox" id="c-browser" /><span>浏览器历史（Chrome / Edge 多配置档副本）</span></label>
             <label class="switch"><input type="checkbox" id="c-documents" /><span>文档与笔记（文件夹关注）</span></label>
             <label class="switch"><input type="checkbox" id="c-clipboard" /><span>剪贴板文本</span></label>
             <label class="switch"><input type="checkbox" id="c-screenshots" /><span>定时截屏（覆盖微信等场景）</span></label>
@@ -196,12 +220,14 @@
           </div>
           <div class="card">
             <h3>隐私与黑名单</h3>
-            <p class="tiny">命中后跳过写入。每行一条。</p>
+            <p class="tiny">命中后跳过写入。每行一条。支持中文路径与应用名。</p>
             <div class="field"><label>应用名黑名单</label><textarea id="bl-apps" class="input area" rows="4"></textarea></div>
             <div class="field"><label>网站黑名单</label><textarea id="bl-sites" class="input area" rows="3"></textarea></div>
             <div class="field"><label>关键词黑名单</label><textarea id="bl-keys" class="input area" rows="3"></textarea></div>
             <label class="switch"><input type="checkbox" id="start-boot" /><span>开机自启</span></label>
+            <label class="switch"><input type="checkbox" id="demo-mode" /><span>体验示例数据（界面标注「示例」，可随时关闭清除）</span></label>
             <button class="btn primary" id="btn-save-collect">保存采集设置</button>
+            <button class="btn ghost" id="btn-open-log" style="margin-top:8px">打开崩溃日志</button>
           </div>
         </div>
       </section>

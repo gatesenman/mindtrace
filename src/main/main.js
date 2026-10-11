@@ -17,6 +17,8 @@ const summarizer = require('../ai/summarizer');
 const { chatCompletion } = require('../ai/client');
 const { exportVault } = require('../export/markdown');
 const apiServer = require('../api/server');
+const collectorStatus = require('./collectorStatus');
+const { installProcessHandlers, appendLog, getLogPath, initLogger } = require('./logger');
 
 let mainWindow = null;
 let tray = null;
@@ -24,6 +26,21 @@ let config = null;
 let summarizeTimer = null;
 
 const isDev = process.argv.includes('--dev');
+
+// Single-instance lock
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 
 function getConfig() { return config; }
 
@@ -51,13 +68,21 @@ async function runScreenshotTour() {
   await capture('04-onboarding-ready.png');
   await mainWindow.webContents.executeJavaScript(`document.getElementById('ob-finish')?.click()`);
   await wait(1200);
-  seedDemoData();
+  setDemoMode(true);
   await mainWindow.webContents.executeJavaScript(`window.mindtrace && (async()=>{const s=document.querySelector('[data-view=dashboard]'); s&&s.click(); await new Promise(r=>setTimeout(r,400));})()`);
   await wait(800);
   await capture('05-dashboard.png');
   for (const [view, file] of [['timeline','06-timeline.png'],['knowledge','07-knowledge.png'],['chat','08-chat.png'],['collect','09-collect.png'],['ai','10-settings.png']]) {
     await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view="${view}"]')?.click()`);
     await wait(700);
+    if (view === 'knowledge') {
+      await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-ktab=journals]')?.click()`);
+      await wait(400); await capture('07a-knowledge-journals.png');
+      await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-ktab=topics]')?.click()`);
+      await wait(400); await capture('07b-knowledge-topics.png');
+      await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-ktab=cards]')?.click()`);
+      await wait(400);
+    }
     await capture(file);
   }
   console.log('SCREENSHOT_TOUR_DONE');
@@ -145,15 +170,26 @@ function broadcastStatus() {
 function startCollectors() {
   const opts = { getConfig };
   const cols = config.collectors || {};
-  const any = Object.values(cols).some(Boolean);
-  if (!any) { console.log('no collectors enabled'); }
-
-  windowTracker.start({ ...opts, intervalMs: 2000, onChange: () => {} });
-  browserHistory.start({ ...opts, intervalMs: 60000 });
-  clipboardCollector.start({ ...opts, clipboard, intervalMs: 1500 });
-  documents.start(opts);
-  screenshots.start({ ...opts, desktopCapturer, BrowserWindow });
-  if (config.api?.enabled) apiServer.start({ getConfig });
+  const safe = (name, fn) => {
+    try { fn(); }
+    catch (e) {
+      collectorStatus.err(name, e);
+      appendLog('ERROR', `start:${name}`, e);
+    }
+  };
+  if (!cols.window) collectorStatus.disabled('window');
+  else safe('window', () => windowTracker.start({ ...opts, intervalMs: 2000, onChange: () => {} }));
+  if (!cols.browser) collectorStatus.disabled('browser');
+  else safe('browser', () => browserHistory.start({ ...opts, intervalMs: 60000 }));
+  if (!cols.clipboard) collectorStatus.disabled('clipboard');
+  else safe('clipboard', () => clipboardCollector.start({ ...opts, clipboard, intervalMs: 1500 }));
+  if (!cols.documents) collectorStatus.disabled('documents');
+  else safe('documents', () => documents.start(opts));
+  if (!cols.screenshots) collectorStatus.disabled('screenshots');
+  else safe('screenshots', () => screenshots.start({ ...opts, desktopCapturer, BrowserWindow }));
+  try {
+    if (config.api?.enabled) apiServer.start({ getConfig });
+  } catch (e) { appendLog('ERROR', 'start:api', e); }
   scheduleSummarize();
 }
 
@@ -196,6 +232,7 @@ function applyBoot() {
 }
 
 function seedDemoData() {
+  store.clearDemoData();
   const now = Date.now();
   const apps = [
     ['Google Chrome', '阅读：Electron 最佳实践', 'browser'],
@@ -215,22 +252,34 @@ function seedDemoData() {
       app_name: a[0],
       process_name: a[0],
       window_title: a[1],
-      url: a[2] === 'browser' ? 'https://example.com/' + i : null,
-      file_path: a[2] === 'document' ? 'C:/Users/Demo/Documents/季度总结.docx' : null,
-      content: a[2] === 'document' ? '本季度重点推进知识管理系统建设…' : null
+      url: a[2] === 'browser' ? 'https://example.com/demo/' + i : null,
+      file_path: a[2] === 'document' ? 'C:/Users/演示用户/Documents/季度总结.docx' : null,
+      content: a[2] === 'document' ? '本季度重点推进知识管理系统建设…' : null,
+      meta: { isDemo: true }
     });
   }
-  store.upsertKnowledgeCard({ kind: 'project', title: '知迹 MindTrace', summary: '个人桌面行为转数字资产的桌面应用', tags: ['产品', 'Electron'] });
-  store.upsertKnowledgeCard({ kind: 'learning', title: 'Electron 安全预加载', summary: '使用 contextBridge 暴露有限 API，关闭 nodeIntegration', tags: ['技术'] });
-  store.upsertKnowledgeCard({ kind: 'person', title: '张三', summary: '协作沟通对象（示例）', tags: ['人脉'] });
-  store.upsertKnowledgeCard({ kind: 'todo', title: '配置 AI API Key', summary: '在设置中填入 DeepSeek / 通义 / Kimi Key', tags: ['待办'] });
+  const c1 = store.upsertKnowledgeCard({ kind: 'project', title: '【示例】知迹 MindTrace', summary: '个人桌面行为转数字资产的桌面应用', tags: ['产品', 'Electron', '示例'], content: '示例项目卡片：覆盖采集、AI 沉淀与导出。' });
+  const c2 = store.upsertKnowledgeCard({ kind: 'learning', title: '【示例】Electron 安全预加载', summary: '使用 contextBridge 暴露有限 API，关闭 nodeIntegration', tags: ['技术', '示例'] });
+  const c3 = store.upsertKnowledgeCard({ kind: 'person', title: '【示例】张三', summary: '协作沟通对象（示例）', tags: ['人脉', '示例'] });
+  store.upsertKnowledgeCard({ kind: 'todo', title: '【示例】配置 AI API Key', summary: '在设置中填入 DeepSeek / 通义 / Kimi Key', tags: ['待办', '示例'] });
+  store.upsertKnowledgeCard({ kind: 'link', title: '【示例】DeepSeek API 文档', summary: 'https://api-docs.deepseek.com', tags: ['链接', '示例'], links: [{ title: 'DeepSeek', url: 'https://api-docs.deepseek.com' }] });
   store.upsertJournal({
     period: 'daily',
     period_key: new Date().toISOString().slice(0, 10),
     title: '示例日报：搭建数字资产管道',
-    content: '今天主要在浏览器查阅资料、用文档整理思路，并通过微信沟通。知迹将这些碎片活动汇总为可检索资产。',
+    content: '【示例数据】今天主要在浏览器查阅资料、用文档整理思路，并通过微信沟通。知迹将这些碎片活动汇总为可检索资产。',
     highlights: ['搭建采集器', '设计知识卡片', '准备 AI 总结']
   });
+  store.upsertTopic({ name: '【示例】桌面知识产品', summary: '围绕知迹产品的设计与实现。示例主题。', card_ids: [c1, c2], activity_count: 12, last_seen: now });
+  store.upsertTopic({ name: '【示例】协作沟通', summary: '与张三等协作相关的讨论与待办。示例主题。', card_ids: [c3], activity_count: 5, last_seen: now });
+}
+
+function setDemoMode(on) {
+  config.demoMode = !!on;
+  saveConfig(config);
+  if (on) seedDemoData();
+  else store.clearDemoData();
+  return { ok: true, demoMode: config.demoMode };
 }
 
 function registerIpc() {
@@ -384,10 +433,30 @@ function registerIpc() {
 
   ipcMain.handle('get-presets', () => PRESETS);
   ipcMain.handle('seed-demo', () => { seedDemoData(); return { ok: true }; });
+  ipcMain.handle('set-demo-mode', (_e, on) => setDemoMode(on));
+  ipcMain.handle('get-collector-status', () => collectorStatus.getAll());
+  ipcMain.handle('get-topics', () => store.all(`SELECT * FROM topics ORDER BY updated_at DESC LIMIT 100`));
+  ipcMain.handle('get-by-id', (_e, { kind, id }) => {
+    if (kind === 'activity' || kind === 'event') return { ok: true, item: store.getActivityById(id) };
+    if (kind === 'card') return { ok: true, item: store.getCardById(id) };
+    if (kind === 'journal') return { ok: true, item: store.getJournalById(id) };
+    return { ok: false, error: 'unknown kind' };
+  });
+  ipcMain.handle('get-log-path', () => getLogPath());
+  ipcMain.handle('open-log', async () => {
+    const p = getLogPath();
+    if (p) await shell.openPath(p);
+    return { ok: true, path: p };
+  });
 }
 
+
 app.whenReady().then(async () => {
+  if (!gotLock) return;
+  installProcessHandlers();
+  initLogger();
   config = loadConfig();
+  if (config.demoMode) { /* will seed after store init */ }
   if (process.argv.includes('--screenshot-tour')) {
     config.onboardingCompleted = false;
     config.authorized = false;
@@ -398,6 +467,7 @@ app.whenReady().then(async () => {
     saveConfig(config);
   }
   await store.initStore();
+  if (config.demoMode) seedDemoData();
   registerIpc();
   createWindow();
   updateTray = buildTray();

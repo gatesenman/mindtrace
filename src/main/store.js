@@ -317,6 +317,49 @@ function getTodayStats() {
   };
 }
 
+function getActivityById(id) { return get(`SELECT * FROM activities WHERE id=?`, [id]); }
+function getCardById(id) { return get(`SELECT * FROM knowledge_cards WHERE id=?`, [id]); }
+function getJournalById(id) { return get(`SELECT * FROM journals WHERE id=?`, [id]); }
+
+function upsertTopic(topic) {
+  const now = Date.now();
+  const existing = topic.id
+    ? get(`SELECT id FROM topics WHERE id=?`, [topic.id])
+    : get(`SELECT id FROM topics WHERE name=?`, [topic.name]);
+  if (existing) {
+    run(`UPDATE topics SET summary=?, card_ids=?, activity_count=?, last_seen=?, updated_at=? WHERE id=?`, [
+      topic.summary || null,
+      topic.card_ids ? JSON.stringify(topic.card_ids) : null,
+      topic.activity_count || 0,
+      topic.last_seen || now,
+      now,
+      existing.id
+    ]);
+    return existing.id;
+  }
+  const id = topic.id || crypto.randomUUID();
+  run(`INSERT INTO topics (id,name,summary,card_ids,activity_count,last_seen,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)`, [
+    id, topic.name, topic.summary || null,
+    topic.card_ids ? JSON.stringify(topic.card_ids) : null,
+    topic.activity_count || 0, topic.last_seen || now, now, now
+  ]);
+  return id;
+}
+
+function clearDemoData() {
+  // activities / screenshots with meta isDemo; cards/journals/topics tagged demo via tags or title prefix
+  const acts = all(`SELECT id, meta FROM activities`);
+  for (const a of acts) {
+    try {
+      const m = a.meta ? JSON.parse(a.meta) : null;
+      if (m && m.isDemo) run(`DELETE FROM activities WHERE id=?`, [a.id]);
+    } catch (_) {}
+  }
+  run(`DELETE FROM knowledge_cards WHERE tags LIKE '%"示例"%' OR title LIKE '【示例】%'`);
+  run(`DELETE FROM journals WHERE title LIKE '示例%' OR title LIKE '【示例】%'`);
+  run(`DELETE FROM topics WHERE name LIKE '【示例】%' OR summary LIKE '%示例主题%'`);
+}
+
 function getDbPath() { return dbPath; }
 function closeStore() { if (db) { persist(true); db.close(); db = null; } }
 
@@ -325,5 +368,5 @@ module.exports = {
   run, all, get,
   insertActivity, updateActivityEnd, insertScreenshot, updateScreenshotDescription,
   upsertKnowledgeCard, upsertJournal, addChatMessage,
-  searchActivities, getTodayStats
+  searchActivities, getTodayStats, getActivityById, getCardById, getJournalById, upsertTopic, clearDemoData
 };

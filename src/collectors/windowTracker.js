@@ -2,6 +2,7 @@ const { execFile } = require('child_process');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 const store = require('../main/store');
+const status = require('../main/collectorStatus');
 
 let timer = null;
 let current = null; // { id, app, process, title, startedAt }
@@ -16,6 +17,8 @@ async function getForeground() {
   try {
     if (isWin()) {
       const script = `
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -66,6 +69,7 @@ async function getIdleSeconds() {
   try {
     if (isWin()) {
       const script = `
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -80,7 +84,7 @@ $i.cbSize = [uint32][System.Runtime.InteropServices.Marshal]::SizeOf($i)
 [void][I]::GetLastInputInfo([ref]$i)
 [int](([I]::GetTickCount() - $i.dwTime) / 1000)
 `;
-      const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', script], { timeout: 3000, windowsHide: true });
+      const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', script], { timeout: 3000, windowsHide: true, encoding: 'utf8' });
       return parseInt(stdout.trim(), 10) || 0;
     }
     if (isLinux()) {
@@ -107,60 +111,72 @@ function isBlacklisted(fg, cfg) {
 
 async function tick() {
   const cfg = getConfig();
-  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.window) return;
-
-  const idleSec = await getIdleSeconds();
-  const thresh = cfg.privacy?.idleThresholdSec || 180;
-  if (idleSec >= thresh) {
-    if (current) {
-      const ended = Date.now();
-      store.updateActivityEnd(current.id, ended, ended - current.startedAt);
-      current = null;
-      onChange({ type: 'idle' });
-    }
-    idleSince = idleSince || Date.now();
+  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.window) {
+    if (!cfg.collectors?.window) status.disabled('window');
     return;
   }
-  idleSince = null;
+  try {
+    const idleSec = await getIdleSeconds();
+    const thresh = cfg.privacy?.idleThresholdSec || 180;
+    if (idleSec >= thresh) {
+      if (current) {
+        const ended = Date.now();
+        store.updateActivityEnd(current.id, ended, ended - current.startedAt);
+        current = null;
+        onChange({ type: 'idle' });
+      }
+      idleSince = idleSince || Date.now();
+      status.ok('window', '空闲中');
+      return;
+    }
+    idleSince = null;
 
-  const fg = await getForeground();
-  if (!fg) return;
-  if (isBlacklisted(fg, cfg)) {
+    const fg = await getForeground();
+    if (!fg) { status.ok('window', '无前台窗口'); return; }
+    if (isBlacklisted(fg, cfg)) {
+      if (current) {
+        const ended = Date.now();
+        store.updateActivityEnd(current.id, ended, ended - current.startedAt);
+        current = null;
+      }
+      status.ok('window', '黑名单跳过');
+      return;
+    }
+
+    const same = current && current.title === fg.title && current.process === fg.process;
+    if (same) {
+      status.ok('window', current.app || fg.app || '前台');
+      return;
+    }
+
+    const now = Date.now();
+    const minDwellMs = (cfg.privacy?.minDwellSec || 3) * 1000;
     if (current) {
-      const ended = Date.now();
-      store.updateActivityEnd(current.id, ended, ended - current.startedAt);
-      current = null;
+      const dur = now - current.startedAt;
+      if (dur < minDwellMs) {
+        try { store.run(`DELETE FROM activities WHERE id=?`, [current.id]); } catch (_) {}
+      } else {
+        store.updateActivityEnd(current.id, now, dur);
+      }
     }
-    return;
+    const id = store.insertActivity({
+      type: 'window',
+      started_at: now,
+      app_name: fg.app || fg.process,
+      process_name: fg.process,
+      window_title: fg.title,
+      meta: { pid: fg.pid }
+    });
+    current = { id, app: fg.app, process: fg.process, title: fg.title, startedAt: now };
+    onChange({ type: 'window', current });
+    status.ok('window', current.app || '前台');
+  } catch (e) {
+    status.err('window', e);
   }
-
-  const same = current && current.title === fg.title && current.process === fg.process;
-  if (same) return;
-
-  const now = Date.now();
-  const minDwellMs = (cfg.privacy?.minDwellSec || 3) * 1000;
-  if (current) {
-    const dur = now - current.startedAt;
-    if (dur < minDwellMs) {
-      // too short — drop previous micro-session
-      try { store.run(`DELETE FROM activities WHERE id=?`, [current.id]); } catch (_) {}
-    } else {
-      store.updateActivityEnd(current.id, now, dur);
-    }
-  }
-  const id = store.insertActivity({
-    type: 'window',
-    started_at: now,
-    app_name: fg.app || fg.process,
-    process_name: fg.process,
-    window_title: fg.title,
-    meta: { pid: fg.pid }
-  });
-  current = { id, app: fg.app, process: fg.process, title: fg.title, startedAt: now };
-  onChange({ type: 'window', current });
 }
 
 function start(opts = {}) {
+
   getConfig = opts.getConfig || getConfig;
   onChange = opts.onChange || onChange;
   stop();

@@ -9,8 +9,10 @@ const titles = {
 
 let state = null;
 let currentKind = '';
+let knowledgeTab = 'journals';
 let presets = {};
 let obStep = 1;
+let highlightId = null;
 let obCollectors = { window: false, browser: false, documents: false, clipboard: false, screenshots: false };
 
 function $(id) { return document.getElementById(id); }
@@ -109,6 +111,9 @@ function applyConfigToForm() {
   $('bl-sites').value = (c.privacy.blacklistSites || []).join('\n');
   $('bl-keys').value = (c.privacy.blacklistKeywords || []).join('\n');
   $('start-boot').checked = !!c.startOnBoot;
+  if ($('demo-mode')) $('demo-mode').checked = !!c.demoMode;
+  $('demo-banner')?.classList.toggle('hidden', !c.demoMode);
+  if ($('btn-seed')) $('btn-seed').textContent = c.demoMode ? '关闭示例数据' : '体验示例数据';
   $('ai-base').value = c.ai.baseUrl || '';
   $('ai-model').value = c.ai.model || '';
   $('ai-key').value = '';
@@ -135,6 +140,7 @@ function showView(name) {
   if (name === 'timeline') loadTimeline();
   if (name === 'knowledge') loadKnowledge();
   if (name === 'chat') loadChat();
+  if (name === 'collect') loadCollectorStatus();
 }
 
 async function loadDashboard() {
@@ -173,38 +179,132 @@ async function loadDashboard() {
   `).join('') || '<div class="empty">这一天还没有记录。确认采集已开启？</div>';
 }
 
-async function loadTimeline() {
-  const q = $('tl-q').value.trim();
+function isDemoMeta(meta) {
+  try { const m = typeof meta === 'string' ? JSON.parse(meta) : meta; return !!(m && m.isDemo); } catch { return false; }
+}
+
+async function loadTimeline(opts = {}) {
+  const q = opts.q != null ? opts.q : $('tl-q').value.trim();
   const type = $('tl-type').value;
-  const items = await window.mindtrace.getTimeline({ q, type, from: Date.now() - 7 * 86400000, limit: 200 });
-  $('timeline-list').innerHTML = items.map(a => `
-    <div class="tl-item">
-      <div class="time">${fmtTime(a.started_at)}<div class="tag" style="margin-top:6px">${typeLabel(a.type)}</div></div>
+  const items = await window.mindtrace.getTimeline({ q, type, from: opts.from || (Date.now() - 7 * 86400000), limit: opts.limit || 200 });
+  // If jumping to id not in list, fetch by id and prepend
+  if (opts.focusId && !items.find(x => x.id === opts.focusId)) {
+    const r = await window.mindtrace.getById('activity', opts.focusId);
+    if (r.ok && r.item) items.unshift(r.item);
+  }
+  $('timeline-list').innerHTML = items.map(a => {
+    const demo = isDemoMeta(a.meta);
+    const hl = (opts.focusId && a.id === opts.focusId) || (highlightId === a.id);
+    return `<div class="tl-item${hl ? ' highlight' : ''}" data-id="${escapeHtml(a.id)}" id="act-${escapeHtml(a.id)}">
+      <div class="time">${fmtTime(a.started_at)}<div class="tag" style="margin-top:6px">${typeLabel(a.type)}</div>${demo ? '<span class="demo-tag">示例</span>' : ''}</div>
       <div>
         <div><b>${escapeHtml(a.app_name || '')}</b> ${escapeHtml(a.window_title || '')}</div>
         <div class="meta">${escapeHtml(a.url || a.file_path || '')} ${a.content ? '· ' + escapeHtml(String(a.content).slice(0, 100)) : ''} ${a.duration_ms ? '· ' + fmtMin(a.duration_ms) : ''}</div>
       </div>
-    </div>
-  `).join('') || '<div class="empty">没有匹配的时间线记录</div>';
+    </div>`;
+  }).join('') || '<div class="empty">没有匹配的时间线记录</div>';
+  if (opts.focusId) {
+    const el = document.getElementById('act-' + opts.focusId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    highlightId = opts.focusId;
+    setTimeout(() => { highlightId = null; }, 4000);
+  }
 }
 
 async function loadKnowledge() {
-  const cards = await window.mindtrace.getCards({ kind: currentKind || undefined });
-  $('cards-grid').innerHTML = cards.map(c => `
-    <div class="kcard" data-kind="${escapeHtml(c.kind)}">
-      <div class="kind">${escapeHtml(c.kind)}</div>
+  showKnowledgeTab(knowledgeTab);
+  if (knowledgeTab === 'journals') await loadJournalsTab();
+  else if (knowledgeTab === 'topics') await loadTopicsTab();
+  else await loadCardsTab();
+}
+
+function showKnowledgeTab(tab) {
+  knowledgeTab = tab;
+  document.querySelectorAll('#knowledge-tabs .chip').forEach(c => c.classList.toggle('active', c.dataset.ktab === tab));
+  ['journals','topics','cards'].forEach(k => {
+    const el = $(`ktab-${k}`);
+    if (el) el.classList.toggle('hidden', k !== tab);
+  });
+}
+
+async function loadJournalsTab(focusId) {
+  const journals = await window.mindtrace.getJournals();
+  $('journals-list').innerHTML = journals.map(j => {
+    const demo = /示例/.test(j.title || '') || /【示例数据】/.test(j.content || '');
+    const hl = focusId && j.id === focusId;
+    return `<div class="list-item${hl ? ' highlight' : ''}" style="grid-template-columns: 100px 1fr" data-id="${escapeHtml(j.id)}" id="journal-${escapeHtml(j.id)}" data-open-journal="${escapeHtml(j.id)}">
+      <div>${j.period_key}${demo ? '<span class="demo-tag">示例</span>' : ''}</div>
+      <div><b>${escapeHtml(j.title || '')}</b><div class="tiny">${escapeHtml((j.content || '').slice(0, 140))}</div></div>
+    </div>`;
+  }).join('') || '<div class="empty">暂无日刊。配置 AI 后可生成本日摘要。</div>';
+  document.querySelectorAll('[data-open-journal]').forEach(el => {
+    el.onclick = async () => {
+      const id = el.getAttribute('data-open-journal');
+      const r = await window.mindtrace.getById('journal', id);
+      if (r.ok && r.item) openDetail('日刊', r.item.title || r.item.period_key, r.item.content || '', r.item.period_key);
+    };
+  });
+  if (focusId) {
+    const el = document.getElementById('journal-' + focusId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+async function loadTopicsTab(focusId) {
+  const topics = await window.mindtrace.getTopics();
+  $('topics-grid').innerHTML = topics.map(tp => {
+    const demo = /【示例】/.test(tp.name || '');
+    return `<div class="kcard" data-kind="project" data-id="${escapeHtml(tp.id)}" id="topic-${escapeHtml(tp.id)}">
+      <div class="kind">主题${demo ? '<span class="demo-tag">示例</span>' : ''}</div>
+      <h4>${escapeHtml(tp.name)}</h4>
+      <p>${escapeHtml(tp.summary || '')}</p>
+      <div class="tiny">关联卡片 ${(() => { try { return JSON.parse(tp.card_ids||'[]').length; } catch { return 0; } })()} · 活动 ${tp.activity_count || 0}</div>
+    </div>`;
+  }).join('') || '<div class="empty">暂无主题。开启示例数据或等待 AI 聚类。</div>';
+  document.querySelectorAll('#topics-grid .kcard').forEach(card => {
+    card.onclick = () => {
+      const id = card.dataset.id;
+      const title = card.querySelector('h4')?.textContent || '主题';
+      const body = card.querySelector('p')?.textContent || '';
+      openDetail('主题', title, body, '');
+    };
+  });
+  if (focusId) document.getElementById('topic-' + focusId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function loadCardsTab(focusId) {
+  const q = ($('card-q')?.value || '').trim().toLowerCase();
+  let cards = await window.mindtrace.getCards({ kind: currentKind || undefined });
+  if (q) cards = cards.filter(c => `${c.title} ${c.summary} ${c.content}`.toLowerCase().includes(q));
+  $('cards-grid').innerHTML = cards.map(c => {
+    const demo = (c.tags || '').includes('示例') || /【示例】/.test(c.title || '');
+    const hl = focusId && c.id === focusId;
+    return `<div class="kcard${hl ? ' highlight' : ''}" data-kind="${escapeHtml(c.kind)}" data-id="${escapeHtml(c.id)}" id="card-${escapeHtml(c.id)}">
+      <div class="kind">${escapeHtml(c.kind)}${demo ? '<span class="demo-tag">示例</span>' : ''}</div>
       <h4>${escapeHtml(c.title)}</h4>
       <p>${escapeHtml(c.summary || '')}</p>
-    </div>
-  `).join('') || '<div class="empty">暂无知识卡片。采集一段时间后，AI 会自动提炼；也可填充示例。</div>';
+    </div>`;
+  }).join('') || '<div class="empty">暂无知识卡片。采集一段时间后，AI 会自动提炼；或开启体验示例数据。</div>';
+  document.querySelectorAll('#cards-grid .kcard').forEach(card => {
+    card.onclick = async () => {
+      const id = card.dataset.id;
+      const r = await window.mindtrace.getById('card', id);
+      if (r.ok && r.item) {
+        openDetail('卡片 · ' + r.item.kind, r.item.title, `${r.item.summary || ''}\n\n${r.item.content || ''}`, (r.item.tags || ''));
+      }
+    };
+  });
+  if (focusId) {
+    const el = document.getElementById('card-' + focusId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
 
-  const journals = await window.mindtrace.getJournals();
-  $('journals-list').innerHTML = journals.map(j => `
-    <div class="list-item" style="grid-template-columns: 100px 1fr">
-      <div>${j.period_key}</div>
-      <div><b>${escapeHtml(j.title || '')}</b><div class="tiny">${escapeHtml((j.content || '').slice(0, 120))}</div></div>
-    </div>
-  `).join('') || '<div class="empty">暂无日刊</div>';
+function openDetail(kindLabel, title, body, meta) {
+  $('detail-title').textContent = title || kindLabel;
+  $('detail-meta').textContent = `${kindLabel}${meta ? ' · ' + meta : ''}`;
+  $('detail-body').textContent = body || '';
+  $('detail-drawer').classList.remove('hidden');
 }
 
 function renderCitations(cites) {
@@ -214,7 +314,8 @@ function renderCitations(cites) {
     const key = escapeHtml(c.key || '');
     const id = escapeHtml(c.id || '');
     const started = c.started_at || '';
-    return `<button type="button" class="cite-chip" data-cite-id="${id}" data-started="${started}" title="${label}"><span class="k">${key}</span>${label}</button>`;
+    const kind = escapeHtml(c.kind === 'card' ? 'card' : c.kind === 'journal' ? 'journal' : 'activity');
+    return `<button type="button" class="cite-chip" data-cite-id="${id}" data-cite-kind="${kind}" data-started="${started}" title="${label}"><span class="k">${key}</span>${label}</button>`;
   }).join('')}</div>`;
 }
 
@@ -237,14 +338,28 @@ async function loadChat() {
 
 function bindCiteClicks(root) {
   root.querySelectorAll('.cite-chip').forEach(btn => {
-    btn.onclick = () => {
-      const started = Number(btn.dataset.started || 0);
-      showView('timeline');
-      if (started) {
-        $('tl-q').value = btn.title || '';
-        setTimeout(() => loadTimeline(), 50);
+    btn.onclick = async () => {
+      const id = btn.dataset.citeId;
+      const kind = btn.dataset.citeKind || 'activity';
+      if (!id) return;
+      if (kind === 'card') {
+        showView('knowledge');
+        showKnowledgeTab('cards');
+        await loadCardsTab(id);
+        toast('已定位到知识卡片');
+        return;
       }
-      toast('已跳到时间线（可按引用关键词查看）');
+      if (kind === 'journal') {
+        showView('knowledge');
+        showKnowledgeTab('journals');
+        await loadJournalsTab(id);
+        toast('已定位到日刊');
+        return;
+      }
+      showView('timeline');
+      $('tl-q').value = '';
+      await loadTimeline({ focusId: id, from: 0, limit: 500 });
+      toast('已定位到时间线事件');
     };
   });
 }
@@ -257,6 +372,19 @@ function readObCollectors() {
     clipboard: $('ob-c-clipboard').checked,
     screenshots: $('ob-c-screenshots').checked
   };
+}
+
+async function loadCollectorStatus() {
+  const rows = await window.mindtrace.getCollectorStatus();
+  $('collector-status-list').innerHTML = rows.map(r => {
+    const st = r.status || 'idle';
+    return `<div class="collector-row">
+      <div><span class="status-dot ${escapeHtml(st)}"></span><b>${escapeHtml(r.name)}</b>
+        <div class="tiny">${escapeHtml(r.message || '')}${r.lastError ? ' · ' + escapeHtml(r.lastError) : ''}</div>
+      </div>
+      <div class="tiny">${st === 'ok' ? '运行中' : st === 'error' ? '异常' : st === 'off' ? '已关' : '空闲'}</div>
+    </div>`;
+  }).join('') || '<div class="empty">暂无状态</div>';
 }
 
 function bind() {
@@ -312,7 +440,13 @@ function bind() {
     document.body.classList.toggle('theme-dark', dark);
     window.mindtrace.setConfig({ theme: dark ? 'dark' : 'light' });
   };
-  $('btn-seed').onclick = async () => { await window.mindtrace.seedDemo(); toast('已填充示例数据'); loadDashboard(); };
+  $('btn-seed').onclick = async () => {
+    const next = !state.config.demoMode;
+    await window.mindtrace.setDemoMode(next);
+    await refreshState();
+    toast(next ? '已开启体验示例数据' : '已关闭并清除示例数据');
+    showView(document.querySelector('.nav-item.active')?.dataset.view || 'dashboard');
+  };
   $('btn-export').onclick = $('btn-export2').onclick = async () => {
     const r = await window.mindtrace.exportVault();
     toast(r.ok ? `已导出到 ${r.vaultPath}` : (r.error || '导出失败'));
@@ -331,9 +465,17 @@ function bind() {
       document.querySelectorAll('#kind-chips .chip').forEach(x => x.classList.remove('active'));
       ch.classList.add('active');
       currentKind = ch.dataset.kind;
-      loadKnowledge();
+      loadCardsTab();
     };
   });
+  document.querySelectorAll('#knowledge-tabs .chip').forEach(ch => {
+    ch.onclick = () => { showKnowledgeTab(ch.dataset.ktab); loadKnowledge(); };
+  });
+  $('detail-close')?.addEventListener('click', () => $('detail-drawer').classList.add('hidden'));
+  $('detail-drawer')?.addEventListener('click', (e) => { if (e.target.id === 'detail-drawer') e.target.classList.add('hidden'); });
+  $('card-q')?.addEventListener('keydown', e => { if (e.key === 'Enter') loadCardsTab(); });
+  $('btn-refresh-status')?.addEventListener('click', loadCollectorStatus);
+  $('btn-open-log')?.addEventListener('click', async () => { await window.mindtrace.openLog(); });
   $('btn-extract').onclick = async () => {
     toast('正在提炼知识卡片…');
     const r = await window.mindtrace.extractCards();
@@ -344,6 +486,8 @@ function bind() {
   $('chat-input').onkeydown = e => { if (e.key === 'Enter') ask(); };
 
   $('btn-save-collect').onclick = async () => {
+    const demoOn = !!$('demo-mode')?.checked;
+    if (demoOn !== !!state.config.demoMode) await window.mindtrace.setDemoMode(demoOn);
     await window.mindtrace.setConfig({
       startOnBoot: $('start-boot').checked,
       collectors: {

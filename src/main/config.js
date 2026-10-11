@@ -10,6 +10,7 @@ const DEFAULTS = {
   language: 'zh-CN',
   startOnBoot: false,
   startCollectingOnLaunch: true,
+  demoMode: false,
   collectors: {
     window: false,
     browser: false,

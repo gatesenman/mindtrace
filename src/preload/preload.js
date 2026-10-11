@@ -20,6 +20,12 @@ contextBridge.exposeInMainWorld('mindtrace', {
   captureNow: () => ipcRenderer.invoke('capture-now'),
   getPresets: () => ipcRenderer.invoke('get-presets'),
   seedDemo: () => ipcRenderer.invoke('seed-demo'),
+  setDemoMode: (on) => ipcRenderer.invoke('set-demo-mode', on),
+  getCollectorStatus: () => ipcRenderer.invoke('get-collector-status'),
+  getTopics: () => ipcRenderer.invoke('get-topics'),
+  getById: (kind, id) => ipcRenderer.invoke('get-by-id', { kind, id }),
+  getLogPath: () => ipcRenderer.invoke('get-log-path'),
+  openLog: () => ipcRenderer.invoke('open-log'),
   onStatus: (cb) => {
     const fn = (_e, data) => cb(data);
     ipcRenderer.on('status', fn);

@@ -1,5 +1,6 @@
 const store = require('../main/store');
 const { redactText, looksLikePassword } = require('../privacy/redact');
+const status = require('../main/collectorStatus');
 
 let timer = null;
 let lastText = '';
@@ -15,7 +16,10 @@ function isBlacklisted(text, cfg) {
 
 function poll() {
   const cfg = getConfig();
-  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.clipboard) return;
+  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.clipboard) {
+    if (!cfg.collectors?.clipboard) status.disabled('clipboard');
+    return;
+  }
   if (!clipboard) return;
   try {
     const text = clipboard.readText();
@@ -40,8 +44,10 @@ function poll() {
       content,
       meta: { length: text.length, redacted: content !== text.slice(0, maxLen) && content !== text.slice(0, maxLen) + '…' }
     });
+    status.ok('clipboard', '运行中');
   } catch (e) {
     console.error('clipboard', e.message);
+    status.err('clipboard', e);
   }
 }
 

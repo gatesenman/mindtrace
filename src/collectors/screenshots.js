@@ -5,6 +5,7 @@ const store = require('../main/store');
 const windowTracker = require('./windowTracker');
 const prompts = require('../ai/prompts');
 const { visionDescribe, parseJsonLoose } = require('../ai/client');
+const status = require('../main/collectorStatus');
 
 let timer = null;
 let getConfig = () => ({});
@@ -87,7 +88,10 @@ function enqueueVision(cfg, id, file) {
 
 async function capture(force = false) {
   const cfg = getConfig();
-  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.screenshots) return null;
+  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.screenshots) {
+    if (!cfg.collectors?.screenshots) status.disabled('screenshots');
+    return null;
+  }
   if (!desktopCapturer) return null;
 
   try {
@@ -125,9 +129,11 @@ async function capture(force = false) {
     });
     // async vision write-back
     enqueueVision(cfg, id, file);
+    status.ok('screenshots', '已截屏');
     return { id, file };
   } catch (e) {
     console.error('screenshot', e.message);
+    status.err('screenshots', e);
     return null;
   }
 }

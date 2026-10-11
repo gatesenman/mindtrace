@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const store = require('../main/store');
+const status = require('../main/collectorStatus');
 
 let watchers = [];
 let pollTimer = null;
@@ -60,7 +61,11 @@ function shouldSkip(filePath, cfg) {
 
 async function recordFile(filePath, event) {
   const cfg = getConfig();
-  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.documents) return;
+  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.documents) {
+    if (!cfg.collectors?.documents) status.disabled('documents');
+    return;
+  }
+  try {
   const ext = path.extname(filePath).toLowerCase();
   if (!DOC_EXT.has(ext)) return;
   if (shouldSkip(filePath, cfg)) return;
@@ -85,6 +90,10 @@ async function recordFile(filePath, event) {
     content: content || null,
     meta: { event, ext }
   });
+    status.ok('documents', path.basename(filePath));
+  } catch (e) {
+    status.err('documents', e);
+  }
 }
 
 function walkDir(dir, depth, out) {
@@ -153,6 +162,7 @@ function scanRecent() {
 function start(opts = {}) {
   getConfig = opts.getConfig || getConfig;
   stop();
+  try {
   const cfg = getConfig();
   const folders = (cfg.watchFolders && cfg.watchFolders.length) ? cfg.watchFolders : defaultWatchFolders();
   for (const folder of folders) {
@@ -177,6 +187,10 @@ function start(opts = {}) {
   pollTimer = setInterval(pollFolders, 45000);
   recentTimer = setInterval(scanRecent, 120000);
   setTimeout(scanRecent, 8000);
+    status.ok('documents', '已关注文件夹');
+  } catch (e) {
+    status.err('documents', e);
+  }
 }
 
 function stop() {

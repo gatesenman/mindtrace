@@ -3,36 +3,54 @@ const path = require('path');
 const os = require('os');
 const initSqlJs = require('sql.js');
 const store = require('../main/store');
+const status = require('../main/collectorStatus');
 
 let timer = null;
 let getConfig = () => ({});
-let lastChrome = 0;
-let lastEdge = 0;
+const lastByPath = new Map();
 let SQL = null;
 
-function chromePaths() {
+function listProfileHistories() {
   const home = os.homedir();
+  const roots = [];
   if (process.platform === 'win32') {
     const la = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
-    return [
-      path.join(la, 'Google', 'Chrome', 'User Data', 'Default', 'History'),
-      path.join(la, 'Microsoft', 'Edge', 'User Data', 'Default', 'History')
-    ];
+    roots.push(
+      { browser: 'chrome', root: path.join(la, 'Google', 'Chrome', 'User Data') },
+      { browser: 'edge', root: path.join(la, 'Microsoft', 'Edge', 'User Data') }
+    );
+  } else if (process.platform === 'linux') {
+    roots.push(
+      { browser: 'chrome', root: path.join(home, '.config', 'google-chrome') },
+      { browser: 'chromium', root: path.join(home, '.config', 'chromium') },
+      { browser: 'edge', root: path.join(home, '.config', 'microsoft-edge') }
+    );
+  } else {
+    roots.push({ browser: 'chrome', root: path.join(home, 'Library', 'Application Support', 'Google', 'Chrome') });
   }
-  if (process.platform === 'linux') {
-    return [
-      path.join(home, '.config', 'google-chrome', 'Default', 'History'),
-      path.join(home, '.config', 'chromium', 'Default', 'History'),
-      path.join(home, '.config', 'microsoft-edge', 'Default', 'History')
-    ];
+
+  const out = [];
+  for (const { browser, root } of roots) {
+    if (!fs.existsSync(root)) continue;
+    let entries = [];
+    try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch (e) {
+      status.err('browser', e);
+      continue;
+    }
+    for (const ent of entries) {
+      if (!ent.isDirectory()) continue;
+      const name = ent.name;
+      if (!(name === 'Default' || /^Profile \d+$/i.test(name) || /^Profile\d+$/i.test(name))) continue;
+      const hist = path.join(root, name, 'History');
+      if (fs.existsSync(hist)) {
+        out.push({ browser, profile: name, filePath: hist });
+      }
+    }
   }
-  return [
-    path.join(home, 'Library', 'Application Support', 'Google', 'Chrome', 'Default', 'History')
-  ];
+  return out;
 }
 
 function chromeTimeToMs(ct) {
-  // Chrome time: microseconds since 1601-01-01
   return Math.floor(ct / 1000) - 11644473600000;
 }
 
@@ -45,18 +63,18 @@ function isBlacklistedUrl(url, cfg) {
   return false;
 }
 
-async function readHistoryFile(filePath, sinceChromeTime, browserName) {
+async function readHistoryFile(filePath, sinceChromeTime, browserName, profile) {
   if (!fs.existsSync(filePath)) return [];
-  const tmp = path.join(os.tmpdir(), `mt-hist-${browserName}-${Date.now()}.db`);
+  const safe = Buffer.from(filePath, 'utf8').toString('hex').slice(0, 24);
+  const tmp = path.join(os.tmpdir(), `mt-hist-${browserName}-${safe}-${Date.now()}.db`);
   try {
     fs.copyFileSync(filePath, tmp);
   } catch (e) {
-    // file locked — try anyway with copy
     try {
       const buf = fs.readFileSync(filePath);
       fs.writeFileSync(tmp, buf);
     } catch (e2) {
-      return [];
+      throw new Error(`无法复制历史库（可能被占用）: ${path.basename(path.dirname(filePath))}/${path.basename(filePath)}`);
     }
   }
   try {
@@ -77,11 +95,9 @@ async function readHistoryFile(filePath, sinceChromeTime, browserName) {
       visitedAt: chromeTimeToMs(r.last_visit_time),
       visitCount: r.visit_count,
       browser: browserName,
+      profile,
       chromeTime: r.last_visit_time
     }));
-  } catch (e) {
-    console.error('browserHistory read', filePath, e.message);
-    return [];
   } finally {
     try { fs.unlinkSync(tmp); } catch (_) {}
   }
@@ -89,54 +105,72 @@ async function readHistoryFile(filePath, sinceChromeTime, browserName) {
 
 async function poll() {
   const cfg = getConfig();
-  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.browser) return;
-
-  const paths = chromePaths().filter(p => fs.existsSync(p));
-  for (const p of paths) {
-    const name = p.toLowerCase().includes('edge') ? 'edge' : p.toLowerCase().includes('chromium') ? 'chromium' : 'chrome';
-    const since = name === 'edge' ? lastEdge : lastChrome;
-    // default: last 24h on first run
-    const sinceCt = since || ((Date.now() + 11644473600000) * 1000 - 24 * 3600 * 1000000);
-    const rows = await readHistoryFile(p, sinceCt, name);
-    let maxCt = since;
-    for (const r of rows.reverse()) {
-      if (isBlacklistedUrl(r.url, cfg)) continue;
-      // dedupe by url+time window
-      const exists = store.get(
-        `SELECT id FROM activities WHERE type='browser' AND url=? AND started_at>? LIMIT 1`,
-        [r.url, r.visitedAt - 60000]
-      );
-      if (exists) {
-        maxCt = Math.max(maxCt, r.chromeTime);
+  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.browser) {
+    status.disabled('browser');
+    return;
+  }
+  try {
+    const profiles = listProfileHistories();
+    if (!profiles.length) {
+      status.setStatus('browser', { status: 'warn', message: '未找到 Chrome/Edge 历史文件' });
+      return;
+    }
+    let added = 0;
+    for (const p of profiles) {
+      const since = lastByPath.get(p.filePath) || ((Date.now() + 11644473600000) * 1000 - 24 * 3600 * 1000000);
+      let rows = [];
+      try {
+        rows = await readHistoryFile(p.filePath, since, p.browser, p.profile);
+      } catch (e) {
+        status.err('browser', e);
         continue;
       }
-      store.insertActivity({
-        type: 'browser',
-        started_at: r.visitedAt,
-        ended_at: r.visitedAt,
-        app_name: name === 'edge' ? 'Microsoft Edge' : 'Google Chrome',
-        process_name: name,
-        window_title: r.title,
-        url: r.url,
-        meta: { visitCount: r.visitCount, browser: name }
-      });
-      maxCt = Math.max(maxCt, r.chromeTime);
+      let maxCt = since;
+      for (const r of rows.reverse()) {
+        if (isBlacklistedUrl(r.url, cfg)) continue;
+        const exists = store.get(
+          `SELECT id FROM activities WHERE type='browser' AND url=? AND started_at>? LIMIT 1`,
+          [r.url, r.visitedAt - 60000]
+        );
+        if (exists) {
+          maxCt = Math.max(maxCt, r.chromeTime);
+          continue;
+        }
+        store.insertActivity({
+          type: 'browser',
+          started_at: r.visitedAt,
+          ended_at: r.visitedAt,
+          app_name: p.browser === 'edge' ? 'Microsoft Edge' : (p.browser === 'chromium' ? 'Chromium' : 'Google Chrome'),
+          process_name: p.browser,
+          window_title: r.title,
+          url: r.url,
+          meta: { visitCount: r.visitCount, browser: p.browser, profile: p.profile }
+        });
+        added++;
+        maxCt = Math.max(maxCt, r.chromeTime);
+      }
+      lastByPath.set(p.filePath, maxCt || since);
     }
-    if (name === 'edge') lastEdge = maxCt || lastEdge;
-    else lastChrome = maxCt || lastChrome;
+    status.ok('browser', `已扫描 ${profiles.length} 个配置档` + (added ? `，新增 ${added}` : ''));
+  } catch (e) {
+    status.err('browser', e);
   }
 }
 
 function start(opts = {}) {
   getConfig = opts.getConfig || getConfig;
   stop();
-  timer = setInterval(poll, opts.intervalMs || 60000);
-  setTimeout(poll, 5000);
+  const cfg = getConfig();
+  if (!cfg.collectors?.browser) { status.disabled('browser'); return; }
+  status.setStatus('browser', { status: 'ok', message: '已启动' });
+  timer = setInterval(() => { poll().catch(e => status.err('browser', e)); }, opts.intervalMs || 60000);
+  setTimeout(() => { poll().catch(e => status.err('browser', e)); }, 5000);
 }
 
 function stop() {
   if (timer) clearInterval(timer);
   timer = null;
+  status.idle('browser');
 }
 
-module.exports = { start, stop, poll };
+module.exports = { start, stop, poll, listProfileHistories };
