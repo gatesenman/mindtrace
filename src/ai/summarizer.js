@@ -2,13 +2,16 @@ const dayjs = require('dayjs');
 const store = require('../main/store');
 const prompts = require('./prompts');
 const { chatCompletion, parseJsonLoose } = require('./client');
+const { redactText } = require('../privacy/redact');
+const { isSelfApp } = require('../main/appNames');
 
 function formatActivities(rows, limit = 80) {
-  return rows.slice(0, limit).map(a => {
+  return rows.filter(a => !isSelfApp({ app: a.app_name, process: a.process_name, title: a.window_title }))
+    .slice(0, limit).map(a => {
     const t = dayjs(a.started_at).format('HH:mm');
     const dur = a.duration_ms ? `${Math.round(a.duration_ms / 60000)}分钟` : '';
     const parts = [t, a.type, a.app_name, a.window_title, a.url, a.file_path];
-    if (a.content) parts.push(String(a.content).slice(0, 120).replace(/\s+/g, ' '));
+    if (a.content) parts.push(redactText(String(a.content).slice(0, 120).replace(/\s+/g, ' ')));
     if (dur) parts.push(dur);
     return parts.filter(Boolean).join(' | ');
   }).join('\n');
@@ -103,10 +106,12 @@ async function askHistory(cfg, question) {
     `SELECT * FROM journals WHERE title LIKE ? OR content LIKE ? ORDER BY created_at DESC LIMIT 5`,
     [`%${q}%`, `%${q}%`]
   );
-  const recent = acts.length ? acts : store.all(`SELECT * FROM activities ORDER BY started_at DESC LIMIT 40`);
+  const recent = (acts.length ? acts : store.all(`SELECT * FROM activities ORDER BY started_at DESC LIMIT 80`))
+    .filter(a => !isSelfApp({ app: a.app_name, process: a.process_name, title: a.window_title }))
+    .slice(0, 40);
 
   const citationIndex = {};
-  const actLines = recent.slice(0, 40).map((a, i) => {
+  const actLines = recent.map((a, i) => {
     const key = `E${i + 1}`;
     citationIndex[key] = {
       key, kind: 'activity', id: a.id, type: a.type,
@@ -114,7 +119,7 @@ async function askHistory(cfg, question) {
       started_at: a.started_at, url: a.url || null, file_path: a.file_path || null
     };
     const t = dayjs(a.started_at).format('HH:mm');
-    const snippet = a.content ? String(a.content).slice(0, 100).replace(/\s+/g, ' ') : '';
+    const snippet = a.content ? redactText(String(a.content).slice(0, 100).replace(/\s+/g, ' ')) : '';
     return `[${key}] ${t} ${a.type} | ${a.app_name || ''} | ${a.window_title || ''} | ${a.url || a.file_path || ''} | ${snippet}`;
   });
   const cardLines = cards.map((c, i) => {

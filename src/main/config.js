@@ -25,7 +25,7 @@ const DEFAULTS = {
     blacklistKeywords: ['密码', '验证码', '身份证号', '银行卡', 'cvv'],
     clipboardMaxLen: 5000,
     screenshotIntervalSec: 300,
-    idleThresholdSec: 180,
+    idleThresholdSec: 300,
     autoRedact: true,
     pauseHotkey: 'CommandOrControl+Shift+M',
     onlyScreenshotApps: ['WeChat', 'WXWork', 'Feishu', 'DingTalk', '微信', '企业微信', '飞书', '钉钉'],

@@ -26,16 +26,17 @@ function poll() {
     if (!text || text === lastText) return;
     if (text.length < 2) return;
     const maxLen = cfg.privacy?.clipboardMaxLen || 5000;
-    if (isBlacklisted(text, cfg)) {
-      lastText = text;
-      return;
-    }
     lastText = text;
-    let content = text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
-    if (looksLikePassword(content)) {
-      content = '[已隐藏-可能为密码]';
-    } else if (cfg.privacy?.autoRedact !== false) {
-      content = redactText(content);
+    let content;
+    if (isBlacklisted(text, cfg)) {
+      content = '[已隐藏]';
+    } else {
+      content = text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
+      if (looksLikePassword(content)) {
+        content = '[已隐藏-可能为密码]';
+      } else if (cfg.privacy?.autoRedact !== false) {
+        content = redactText(content);
+      }
     }
     store.insertActivity({
       type: 'clipboard',

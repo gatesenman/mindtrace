@@ -66,6 +66,11 @@ app.whenReady().then(async () => {
     pass('redact-key', redactText('sk-abcdefghijklmnopqrstuvwxyz').includes('[敏感'));
 
     await store.initStore();
+    {
+      const rid = store.insertActivity({ type: 'clipboard', started_at: Date.now(), content: 'my key sk-abcdefghijklmnopqrstuvwxyz1234' });
+      const row = store.get('SELECT content FROM activities WHERE id=?', [rid]);
+      pass('store-redact-insert', !!(row && String(row.content).includes('[敏感')), row && row.content);
+    }
     let config = loadConfig();
     config.authorized = true;
     config.onboardingCompleted = true;

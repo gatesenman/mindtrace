@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { isSelfApp, friendlyAppName } = require('./appNames');
+const { redactText } = require('../privacy/redact');
 const { app } = require('electron');
 
 let SQL = null;
@@ -161,6 +162,7 @@ function get(sql, params = []) {
 function insertActivity(row) {
   const id = row.id || crypto.randomUUID();
   const now = Date.now();
+  const content = row.content != null ? redactText(String(row.content)) : null;
   run(
     `INSERT INTO activities (id,type,started_at,ended_at,duration_ms,app_name,process_name,window_title,url,file_path,content,meta,created_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -175,7 +177,7 @@ function insertActivity(row) {
       row.window_title || null,
       row.url || null,
       row.file_path || null,
-      row.content || null,
+      content,
       row.meta ? JSON.stringify(row.meta) : null,
       now
     ]
@@ -199,14 +201,16 @@ function insertScreenshot(row) {
 }
 
 function updateScreenshotDescription(id, description, ocrText) {
+  const desc = description != null ? redactText(String(description)) : null;
+  const ocr = ocrText != null ? redactText(String(ocrText)) : null;
   run(`UPDATE screenshots SET description=?, ocr_text=COALESCE(?, ocr_text) WHERE id=?`, [
-    description || null,
-    ocrText || null,
+    desc,
+    ocr,
     id
   ]);
   // also mirror into related activity content for retrieval
   run(`UPDATE activities SET content=? WHERE type='screenshot' AND meta LIKE ?`, [
-    description || null,
+    desc,
     `%"screenshotId":"${id}"%`
   ]);
 }

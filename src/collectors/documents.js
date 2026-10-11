@@ -3,6 +3,7 @@ const path = require('path');
 const os = require('os');
 const store = require('../main/store');
 const status = require('../main/collectorStatus');
+const { redactText } = require('../privacy/redact');
 
 let watchers = [];
 let pollTimer = null;
@@ -79,6 +80,9 @@ async function recordFile(filePath, event) {
     const stat = fs.statSync(filePath);
     if (stat.size < 8 * 1024 * 1024) content = await extractText(filePath);
   } catch (_) {}
+  if (content && cfg.privacy?.autoRedact !== false) {
+    content = redactText(content);
+  }
 
   store.insertActivity({
     type: 'document',

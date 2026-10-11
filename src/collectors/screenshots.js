@@ -6,6 +6,7 @@ const windowTracker = require('./windowTracker');
 const prompts = require('../ai/prompts');
 const { visionDescribe, parseJsonLoose } = require('../ai/client');
 const status = require('../main/collectorStatus');
+const { redactText } = require('../privacy/redact');
 
 let timer = null;
 let getConfig = () => ({});
@@ -77,6 +78,10 @@ async function describeShot(cfg, id, file) {
       ocr = Array.isArray(parsed.key_text) ? parsed.key_text.join('\n') : null;
       if (parsed.sensitive) description += ' · [含敏感，已省略细节]';
     }
+    if (cfg.privacy?.autoRedact !== false) {
+      description = redactText(description || '');
+      if (ocr) ocr = redactText(ocr);
+    }
     store.updateScreenshotDescription(id, description, ocr);
   } catch (e) {
     console.error('visionDescribe', e.message);
@@ -98,7 +103,8 @@ async function capture(force = false) {
 
   try {
     const idle = await windowTracker.getIdleSeconds();
-    if (!force && idle >= 300) return null;
+    const idleLimit = cfg.privacy?.idleThresholdSec || 300;
+    if (!force && idle >= idleLimit) return null;
 
     const cur = windowTracker.getCurrent();
     if (!force && !shouldCaptureForApp(cfg, cur)) return null;
