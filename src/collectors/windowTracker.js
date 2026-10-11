@@ -37,7 +37,7 @@ $procId = 0
 $p = Get-Process -Id $procId -ErrorAction SilentlyContinue
 @{ title = $sb.ToString(); process = $(if($p){$p.ProcessName}else{''}); app = $(if($p){$p.MainModule.FileVersionInfo.FileDescription}else{''}); pid = $procId } | ConvertTo-Json -Compress
 `;
-      const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ' + script], { timeout: 5000, windowsHide: true });
+      const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ' + script], { timeout: 5000, windowsHide: true, encoding: 'utf8' });
       const j = JSON.parse(stdout.trim() || '{}');
       return { title: j.title || '', process: j.process || '', app: j.app || j.process || '', pid: j.pid };
     }
