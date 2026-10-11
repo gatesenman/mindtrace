@@ -3,8 +3,8 @@ const {
   clipboard, desktopCapturer, dialog, shell, globalShortcut
 } = require('electron');
 const path = require('path');
+const crypto = require('crypto');
 const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
 
 const { loadConfig, saveConfig, PRESETS } = require('./config');
 const store = require('./store');
@@ -34,7 +34,7 @@ function createWindow() {
     minWidth: 960,
     minHeight: 640,
     title: '知迹 MindTrace',
-    backgroundColor: '#0f1117',
+    backgroundColor: '#F6F7F9',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
@@ -68,7 +68,7 @@ function buildTray() {
       { label: '打开知迹', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
       { label: paused ? '继续采集' : '暂停采集', click: () => setPaused(!paused) },
       { type: 'separator' },
-      { label: '立即截图', click: () => screenshots.capture() },
+      { label: '立即截图', click: () => screenshots.capture(true) },
       { label: '生成今日日报', click: () => summarizer.buildDailyJournal(config).catch(console.error) },
       { type: 'separator' },
       { label: '退出', click: () => { app.isQuitting = true; app.quit(); } }
@@ -105,7 +105,7 @@ function startCollectors() {
   clipboardCollector.start({ ...opts, clipboard, intervalMs: 1500 });
   documents.start(opts);
   screenshots.start({ ...opts, desktopCapturer, BrowserWindow });
-  apiServer.start({ getConfig });
+  if (config.api?.enabled) apiServer.start({ getConfig });
   scheduleSummarize();
 }
 
@@ -125,6 +125,20 @@ function scheduleSummarize() {
   summarizeTimer = setInterval(() => {
     summarizer.maybeAutoSummarize(config);
   }, Math.max(15, min) * 60 * 1000);
+}
+
+
+function registerPauseHotkey() {
+  try { globalShortcut.unregisterAll(); } catch (_) {}
+  const accel = config.privacy?.pauseHotkey || 'CommandOrControl+Shift+M';
+  try {
+    globalShortcut.register(accel, () => {
+      setPaused(!config.privacy.paused);
+      mainWindow?.webContents.send('status', { paused: config.privacy.paused, toast: config.privacy.paused ? '已暂停采集' : '已恢复采集' });
+    });
+  } catch (e) {
+    console.error('hotkey', e.message);
+  }
 }
 
 function applyBoot() {
@@ -181,7 +195,7 @@ function registerIpc() {
     platform: process.platform,
     version: app.getVersion(),
     userData: app.getPath('userData'),
-    apiPort: config.api?.port || 17890
+    apiPort: config.api?.port || 17321
   }));
 
   ipcMain.handle('set-config', (_e, patch) => {
@@ -201,26 +215,32 @@ function registerIpc() {
     applyBoot();
     if (patch.api || patch.collectors || patch.privacy || patch.watchFolders) {
       stopCollectors();
-      if (config.authorized) startCollectors();
+      if (config.authorized && config.startCollectingOnLaunch !== false) startCollectors();
     } else {
       scheduleSummarize();
       apiServer.stop();
-      apiServer.start({ getConfig });
+      if (config.api?.enabled) apiServer.start({ getConfig });
     }
+    registerPauseHotkey();
     updateTray();
     broadcastStatus();
     return { ok: true };
   });
 
-  ipcMain.handle('authorize', (_e, ok) => {
+  ipcMain.handle('authorize', (_e, ok, collectorsPatch) => {
     config.authorized = !!ok;
+    config.onboardingCompleted = !!ok;
     config.authorizedAt = ok ? new Date().toISOString() : null;
+    if (ok && collectorsPatch && typeof collectorsPatch === 'object') {
+      config.collectors = { ...config.collectors, ...collectorsPatch };
+    }
     saveConfig(config);
     if (ok) startCollectors();
     else stopCollectors();
+    registerPauseHotkey();
     updateTray();
     broadcastStatus();
-    return { ok: true, authorized: config.authorized };
+    return { ok: true, authorized: config.authorized, collectors: config.collectors };
   });
 
   ipcMain.handle('set-paused', (_e, paused) => {
@@ -308,8 +328,8 @@ function registerIpc() {
   });
 
   ipcMain.handle('capture-now', async () => {
-    const r = await screenshots.capture();
-    return { ok: !!r, ...r };
+    const r = await screenshots.capture(true);
+    return { ok: !!r, ...(r || {}) };
   });
 
   ipcMain.handle('get-presets', () => PRESETS);
@@ -319,7 +339,7 @@ function registerIpc() {
 app.whenReady().then(async () => {
   config = loadConfig();
   if (!config.api.token) {
-    config.api.token = uuidv4().replace(/-/g, '').slice(0, 24);
+    config.api.token = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
     saveConfig(config);
   }
   await store.initStore();
@@ -327,7 +347,8 @@ app.whenReady().then(async () => {
   createWindow();
   updateTray = buildTray();
   applyBoot();
-  if (config.authorized) startCollectors();
+  registerPauseHotkey();
+  if (config.authorized && config.startCollectingOnLaunch !== false) startCollectors();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -337,6 +358,7 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true;
+  try { globalShortcut.unregisterAll(); } catch (_) {}
   stopCollectors();
   store.closeStore();
 });

@@ -29,12 +29,12 @@ public class W {
 $h = [W]::GetForegroundWindow()
 $sb = New-Object System.Text.StringBuilder 1024
 [void][W]::GetWindowText($h, $sb, $sb.Capacity)
-$pid = 0
-[void][W]::GetWindowThreadProcessId($h, [ref]$pid)
-$p = Get-Process -Id $pid -ErrorAction SilentlyContinue
-@{ title = $sb.ToString(); process = $(if($p){$p.ProcessName}else{''}); app = $(if($p){$p.MainModule.FileVersionInfo.FileDescription}else{''}); pid = $pid } | ConvertTo-Json -Compress
+$procId = 0
+[void][W]::GetWindowThreadProcessId($h, [ref]$procId)
+$p = Get-Process -Id $procId -ErrorAction SilentlyContinue
+@{ title = $sb.ToString(); process = $(if($p){$p.ProcessName}else{''}); app = $(if($p){$p.MainModule.FileVersionInfo.FileDescription}else{''}); pid = $procId } | ConvertTo-Json -Compress
 `;
-      const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', script], { timeout: 5000, windowsHide: true });
+      const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ' + script], { timeout: 5000, windowsHide: true });
       const j = JSON.parse(stdout.trim() || '{}');
       return { title: j.title || '', process: j.process || '', app: j.app || j.process || '', pid: j.pid };
     }
@@ -138,8 +138,15 @@ async function tick() {
   if (same) return;
 
   const now = Date.now();
+  const minDwellMs = (cfg.privacy?.minDwellSec || 3) * 1000;
   if (current) {
-    store.updateActivityEnd(current.id, now, now - current.startedAt);
+    const dur = now - current.startedAt;
+    if (dur < minDwellMs) {
+      // too short — drop previous micro-session
+      try { store.run(`DELETE FROM activities WHERE id=?`, [current.id]); } catch (_) {}
+    } else {
+      store.updateActivityEnd(current.id, now, dur);
+    }
   }
   const id = store.insertActivity({
     type: 'window',

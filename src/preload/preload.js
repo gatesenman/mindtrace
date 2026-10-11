@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('mindtrace', {
   getState: () => ipcRenderer.invoke('get-state'),
   setConfig: (patch) => ipcRenderer.invoke('set-config', patch),
-  authorize: (ok) => ipcRenderer.invoke('authorize', ok),
+  authorize: (ok, collectors) => ipcRenderer.invoke('authorize', ok, collectors),
   setPaused: (paused) => ipcRenderer.invoke('set-paused', paused),
   getTodayStats: () => ipcRenderer.invoke('get-today-stats'),
   getTimeline: (opts) => ipcRenderer.invoke('get-timeline', opts),

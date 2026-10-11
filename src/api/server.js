@@ -39,7 +39,7 @@ function start(opts = {}) {
   stop();
   const cfg = getConfig();
   if (!cfg.api?.enabled) return;
-  const port = cfg.api.port || 17890;
+  const port = cfg.api.port || 17321;
 
   server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') {

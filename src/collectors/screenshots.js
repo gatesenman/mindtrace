@@ -15,12 +15,41 @@ function shotDir() {
   return dir;
 }
 
-async function capture() {
+function shouldCaptureForApp(cfg, cur) {
+  const only = cfg.privacy?.onlyScreenshotApps || [];
+  if (!only.length) return true; // no filter = all apps
+  if (!cur) return false;
+  const hay = `${cur.app || ''} ${cur.process || ''} ${cur.title || ''}`.toLowerCase();
+  return only.some(a => a && hay.includes(String(a).toLowerCase()));
+}
+
+function purgeOld(retainDays) {
+  const days = retainDays || 14;
+  const cutoff = Date.now() - days * 86400000;
+  try {
+    const dir = shotDir();
+    for (const f of fs.readdirSync(dir)) {
+      const full = path.join(dir, f);
+      try {
+        const st = fs.statSync(full);
+        if (st.mtimeMs < cutoff) fs.unlinkSync(full);
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
+async function capture(force = false) {
   const cfg = getConfig();
   if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.screenshots) return null;
   if (!desktopCapturer) return null;
 
   try {
+    const idle = await windowTracker.getIdleSeconds();
+    if (!force && idle >= 300) return null; // 5 min idle: skip
+
+    const cur = windowTracker.getCurrent();
+    if (!force && !shouldCaptureForApp(cfg, cur)) return null;
+
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
       thumbnailSize: { width: 1280, height: 720 }
@@ -31,7 +60,6 @@ async function capture() {
     const now = Date.now();
     const file = path.join(shotDir(), `shot-${now}.png`);
     fs.writeFileSync(file, png);
-    const cur = windowTracker.getCurrent();
     const id = store.insertScreenshot({
       taken_at: now,
       file_path: file,
@@ -61,8 +89,9 @@ function start(opts = {}) {
   stop();
   const tick = () => {
     const cfg = getConfig();
-    const sec = cfg.privacy?.screenshotIntervalSec || 120;
-    capture();
+    const sec = cfg.privacy?.screenshotIntervalSec || 300;
+    capture(false);
+    purgeOld(cfg.privacy?.screenshotRetainDays || 14);
     timer = setTimeout(tick, Math.max(30, sec) * 1000);
   };
   timer = setTimeout(tick, 15000);

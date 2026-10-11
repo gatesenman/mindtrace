@@ -7,28 +7,68 @@
   <title>知迹 MindTrace</title>
   <link rel="stylesheet" href="css/app.css" />
 </head>
-<body class="theme-dark">
+<body data-theme="light">
   <div id="app">
-    <!-- Onboarding -->
     <div id="onboarding" class="overlay hidden">
-      <div class="onboard-card">
-        <div class="brand-mark">知</div>
-        <h1>欢迎使用知迹 MindTrace</h1>
-        <p class="muted">把每天碎片化的桌面行为，沉淀成你自己的结构化数字资产。</p>
-        <div class="consent-box">
-          <h3>授权说明（请仔细阅读）</h3>
-          <ul>
-            <li>仅在您明确授权后开始采集；可随时暂停或关闭单项采集。</li>
-            <li>可采集：前台窗口时间线、浏览器历史、文档变动、剪贴板文本、周期性截图。</li>
-            <li>所有数据默认保存在本机；不会上传，除非您自行配置并调用 AI API。</li>
-            <li>支持应用/网站/关键词黑名单；密码类应用建议加入黑名单。</li>
-            <li>微信等封闭应用通过截图+AI 描述间接理解，不会解密其数据库。</li>
-          </ul>
-          <label class="check"><input type="checkbox" id="consent-check" /> 我已理解并同意上述授权条款</label>
+      <div class="onboard-card" id="ob-card">
+        <div class="onboard-steps" id="ob-steps">
+          <span class="on"></span><span></span><span></span><span></span>
         </div>
-        <div class="row gap">
-          <button class="btn ghost" id="btn-refuse">暂不授权</button>
-          <button class="btn primary" id="btn-authorize" disabled>开始使用</button>
+        <div id="ob-step1" class="ob-step center">
+          <div class="brand-mark">知</div>
+          <h1>知迹 MindTrace</h1>
+          <p class="muted">把每天散落的操作，变成可复用的知识资产</p>
+          <div class="value-list">
+            <div class="v"><div>①</div><div><b>授权后安静记录</b><div class="tiny">窗口、浏览器、文档、剪贴板、截屏——你说了算</div></div></div>
+            <div class="v"><div>②</div><div><b>AI 结构化沉淀</b><div class="tiny">日刊、主题、知识卡片，给未来的你和其他 AI 用</div></div></div>
+            <div class="v"><div>③</div><div><b>隐私优先，数据在本地</b><div class="tiny">默认不上云；可暂停、可黑名单、可脱敏</div></div></div>
+          </div>
+          <button class="btn primary" id="ob-next1">开始设置</button>
+        </div>
+        <div id="ob-step2" class="ob-step hidden">
+          <h1>选择要记录的内容</h1>
+          <p class="muted">默认全部关闭。请主动开启你需要的项，随时可改。</p>
+          <div class="collector-pick">
+            <label><input type="checkbox" id="ob-c-window" /><div><div class="name">窗口与应用时间线</div><div class="desc">记录前台应用、窗口标题与停留时长</div></div></label>
+            <label><input type="checkbox" id="ob-c-browser" /><div><div class="name">浏览器历史</div><div class="desc">读取 Chrome / Edge 本地历史（只读副本）</div></div></label>
+            <label><input type="checkbox" id="ob-c-documents" /><div><div class="name">文档与笔记</div><div class="desc">关注最近打开或修改的文档、笔记、电子书</div></div></label>
+            <label><input type="checkbox" id="ob-c-clipboard" /><div><div class="name">剪贴板</div><div class="desc">记录文本与链接（自动脱敏敏感信息）</div></div></label>
+            <label><input type="checkbox" id="ob-c-screenshots" /><div><div class="name">定时截屏 + AI 识图</div><div class="desc">用于微信等不便读库的软件；本地保存</div></div></label>
+          </div>
+          <p class="legal">数据默认仅保存在本机。截屏与剪贴板可能包含敏感信息，请按需开启并配置黑名单。知迹不会在未授权时采集。</p>
+          <div class="row gap">
+            <button class="btn ghost" id="ob-back2">上一步</button>
+            <button class="btn" id="ob-skip2">我先都关掉，稍后再开</button>
+            <button class="btn primary" id="ob-next2">下一步</button>
+          </div>
+        </div>
+        <div id="ob-step3" class="ob-step hidden">
+          <h1>配置 AI 模型</h1>
+          <p class="muted">使用 OpenAI 兼容接口。也可稍后配置。</p>
+          <div class="field"><label>预设</label><select id="ob-ai-preset" class="input"></select></div>
+          <div class="grid two">
+            <div class="field"><label>Base URL</label><input id="ob-ai-base" class="input" /></div>
+            <div class="field"><label>模型</label><input id="ob-ai-model" class="input" /></div>
+          </div>
+          <div class="field"><label>API Key</label><input id="ob-ai-key" class="input" type="password" placeholder="sk-…" /></div>
+          <div class="row gap">
+            <button class="btn ghost" id="ob-back3">上一步</button>
+            <button class="btn" id="ob-test">测试连接</button>
+            <button class="btn" id="ob-skip3">稍后配置</button>
+            <button class="btn primary" id="ob-next3">下一步</button>
+          </div>
+          <pre id="ob-ai-result" class="result-box muted"></pre>
+        </div>
+        <div id="ob-step4" class="ob-step hidden center">
+          <div class="brand-mark">知</div>
+          <h1>一切就绪</h1>
+          <p class="muted">你可以随时在「采集中心」与「设置」里调整。</p>
+          <label class="switch" style="justify-content:center"><input type="checkbox" id="ob-boot" /><span>开机自启</span></label>
+          <label class="switch" style="justify-content:center"><input type="checkbox" id="ob-start" checked /><span>进入后开始采集（若已开启采集项）</span></label>
+          <div class="row gap" style="justify-content:center;margin-top:18px">
+            <button class="btn ghost" id="ob-back4">上一步</button>
+            <button class="btn primary" id="ob-finish">进入知迹</button>
+          </div>
         </div>
       </div>
     </div>
@@ -42,40 +82,41 @@
         </div>
       </div>
       <nav id="nav">
-        <button data-view="dashboard" class="nav-item active"><span class="ico">◎</span>今日概览</button>
-        <button data-view="timeline" class="nav-item"><span class="ico">◷</span>时间线</button>
-        <button data-view="knowledge" class="nav-item"><span class="ico">◈</span>知识库</button>
-        <button data-view="chat" class="nav-item"><span class="ico">💬</span>问答</button>
-        <button data-view="collect" class="nav-item"><span class="ico">⚙</span>采集与隐私</button>
-        <button data-view="ai" class="nav-item"><span class="ico">✦</span>AI 设置</button>
+        <button data-view="dashboard" class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>今日</button>
+        <button data-view="timeline" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>时间线</button>
+        <button data-view="knowledge" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4v15.5"/><path d="M8 4h12v13H8z"/></svg>知识库</button>
+        <button data-view="chat" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>问问历史</button>
+        <button data-view="collect" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><circle cx="12" cy="12" r="4"/></svg>采集中心</button>
+        <button data-view="ai" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>设置</button>
       </nav>
       <div class="sidebar-foot">
-        <div id="status-pill" class="status-pill off">未授权</div>
+        <div id="status-pill" class="status-pill off"><span class="dot"></span><span id="status-text">未就绪</span></div>
         <button id="btn-pause" class="btn block">暂停采集</button>
-        <button id="btn-theme" class="btn ghost block">切换主题</button>
+        <button id="btn-theme" class="btn ghost block">切换深色/浅色</button>
+        <div class="tiny" style="text-align:center">v1.0.0 · Ctrl+Shift+M 暂停</div>
       </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
         <div>
-          <h2 id="view-title">今日概览</h2>
+          <div class="greeting" id="greeting"></div>
+          <h2 id="view-title">今日</h2>
           <p class="muted" id="view-sub">把今天的忙碌，变成可复用的资产</p>
         </div>
         <div class="top-actions">
-          <button class="btn" id="btn-seed">填充示例数据</button>
+          <button class="btn" id="btn-seed">填充示例</button>
           <button class="btn" id="btn-export">导出知识库</button>
-          <button class="btn primary" id="btn-summarize">生成今日日报</button>
+          <button class="btn primary" id="btn-summarize">生成本日摘要</button>
         </div>
       </header>
 
-      <!-- Dashboard -->
       <section id="view-dashboard" class="view">
         <div class="grid stats">
           <div class="card stat"><div class="label">专注时长</div><div class="value" id="stat-time">0 分钟</div></div>
           <div class="card stat"><div class="label">活动条数</div><div class="value" id="stat-acts">0</div></div>
+          <div class="card stat"><div class="label">浏览相关</div><div class="value" id="stat-browse">0</div></div>
           <div class="card stat"><div class="label">知识卡片</div><div class="value" id="stat-cards">0</div></div>
-          <div class="card stat"><div class="label">今日截图</div><div class="value" id="stat-shots">0</div></div>
         </div>
         <div class="grid two">
           <div class="card">
@@ -83,8 +124,8 @@
             <div id="app-bars" class="bars"></div>
           </div>
           <div class="card">
-            <div class="card-head"><h3>今日日报</h3><button class="btn sm" id="btn-refresh-journal">刷新</button></div>
-            <div id="journal-box" class="journal-box muted">尚未生成日报。配置 AI 后点击「生成今日日报」。</div>
+            <div class="card-head"><h3>今日摘要</h3><button class="btn sm" id="btn-refresh-journal">刷新</button></div>
+            <div id="journal-box" class="journal-box muted">还没有摘要。开启采集一段时间后，点击上方按钮生成。</div>
           </div>
         </div>
         <div class="card">
@@ -93,7 +134,6 @@
         </div>
       </section>
 
-      <!-- Timeline -->
       <section id="view-timeline" class="view hidden">
         <div class="toolbar">
           <input id="tl-q" class="input" placeholder="搜索标题、应用、网址、内容…" />
@@ -103,93 +143,80 @@
             <option value="browser">浏览器</option>
             <option value="document">文档</option>
             <option value="clipboard">剪贴板</option>
-            <option value="screenshot">截图</option>
+            <option value="screenshot">截屏</option>
           </select>
           <button class="btn" id="btn-tl-search">搜索</button>
         </div>
         <div id="timeline-list" class="timeline"></div>
       </section>
 
-      <!-- Knowledge -->
       <section id="view-knowledge" class="view hidden">
         <div class="toolbar">
           <div class="chips" id="kind-chips">
             <button class="chip active" data-kind="">全部</button>
             <button class="chip" data-kind="project">项目</button>
-            <button class="chip" data-kind="learning">学习</button>
+            <button class="chip" data-kind="learning">所学</button>
             <button class="chip" data-kind="person">人物</button>
             <button class="chip" data-kind="todo">待办</button>
             <button class="chip" data-kind="link">链接</button>
             <button class="chip" data-kind="note">笔记</button>
           </div>
-          <button class="btn primary" id="btn-extract">从近况抽取卡片</button>
+          <button class="btn primary" id="btn-extract">从近况提炼卡片</button>
         </div>
         <div id="cards-grid" class="cards-grid"></div>
         <div class="card" style="margin-top:16px">
-          <div class="card-head"><h3>历史日报</h3></div>
+          <div class="card-head"><h3>日刊</h3></div>
           <div id="journals-list" class="list"></div>
         </div>
       </section>
 
-      <!-- Chat -->
       <section id="view-chat" class="view hidden">
         <div class="chat-wrap card">
           <div id="chat-log" class="chat-log"></div>
           <div class="chat-input-row">
-            <input id="chat-input" class="input grow" placeholder="问问你的历史：我上周在研究什么？和谁聊过项目？" />
+            <input id="chat-input" class="input grow" placeholder="今天我和谁讨论过项目？上周读了哪些关于 Electron 的内容？" />
             <button class="btn primary" id="btn-ask">提问</button>
           </div>
-          <p class="muted tiny">也可通过本机 API <code id="api-hint">http://127.0.0.1:17890</code> 让其他 AI 工具查询知识库。</p>
+          <p class="tiny">本机 API：<code id="api-hint">http://127.0.0.1:17321</code> · 快捷键暂停：Ctrl+Shift+M</p>
         </div>
       </section>
 
-      <!-- Collect / Privacy -->
       <section id="view-collect" class="view hidden">
         <div class="grid two">
           <div class="card">
             <h3>采集开关</h3>
-            <label class="switch"><input type="checkbox" id="c-window" /><span>前台窗口 / 应用时间线</span></label>
-            <label class="switch"><input type="checkbox" id="c-browser" /><span>浏览器历史（Chrome / Edge）</span></label>
-            <label class="switch"><input type="checkbox" id="c-documents" /><span>文档与笔记（监控文件夹）</span></label>
+            <label class="switch"><input type="checkbox" id="c-window" /><span>窗口与应用时间线</span></label>
+            <label class="switch"><input type="checkbox" id="c-browser" /><span>浏览器历史（Chrome / Edge 副本）</span></label>
+            <label class="switch"><input type="checkbox" id="c-documents" /><span>文档与笔记（文件夹关注）</span></label>
             <label class="switch"><input type="checkbox" id="c-clipboard" /><span>剪贴板文本</span></label>
-            <label class="switch"><input type="checkbox" id="c-screenshots" /><span>周期性截图（含微信等场景）</span></label>
-            <div class="field">
-              <label>截图间隔（秒）</label>
-              <input type="number" id="shot-interval" class="input" min="30" max="3600" />
-            </div>
-            <div class="field">
-              <label>空闲判定（秒）</label>
-              <input type="number" id="idle-threshold" class="input" min="60" max="3600" />
-            </div>
+            <label class="switch"><input type="checkbox" id="c-screenshots" /><span>定时截屏（覆盖微信等场景）</span></label>
+            <div class="field"><label>截屏间隔（秒）</label><input type="number" id="shot-interval" class="input" min="30" max="3600" /></div>
+            <div class="field"><label>空闲判定（秒）</label><input type="number" id="idle-threshold" class="input" min="60" max="3600" /></div>
             <button class="btn" id="btn-capture">立即截一张</button>
           </div>
           <div class="card">
-            <h3>隐私黑名单</h3>
-            <p class="muted tiny">命中后跳过采集。每行一条。</p>
+            <h3>隐私与黑名单</h3>
+            <p class="tiny">命中后跳过写入。每行一条。</p>
             <div class="field"><label>应用名黑名单</label><textarea id="bl-apps" class="input area" rows="4"></textarea></div>
             <div class="field"><label>网站黑名单</label><textarea id="bl-sites" class="input area" rows="3"></textarea></div>
             <div class="field"><label>关键词黑名单</label><textarea id="bl-keys" class="input area" rows="3"></textarea></div>
-            <label class="switch"><input type="checkbox" id="start-boot" /><span>开机启动</span></label>
+            <label class="switch"><input type="checkbox" id="start-boot" /><span>开机自启</span></label>
             <button class="btn primary" id="btn-save-collect">保存采集设置</button>
           </div>
         </div>
       </section>
 
-      <!-- AI settings -->
       <section id="view-ai" class="view hidden">
         <div class="card">
-          <h3>OpenAI 兼容接口</h3>
-          <div class="field">
-            <label>预设</label>
-            <select id="ai-preset" class="input"></select>
-          </div>
+          <h3>AI 模型（OpenAI 兼容）</h3>
+          <div class="field"><label>预设</label><select id="ai-preset" class="input"></select></div>
           <div class="grid two">
             <div class="field"><label>Base URL</label><input id="ai-base" class="input" placeholder="https://api.deepseek.com/v1" /></div>
             <div class="field"><label>模型</label><input id="ai-model" class="input" placeholder="deepseek-chat" /></div>
           </div>
           <div class="field"><label>API Key</label><input id="ai-key" class="input" type="password" placeholder="sk-…" /></div>
           <div class="grid two">
-            <label class="switch"><input type="checkbox" id="ai-auto" /><span>自动抽取知识卡片</span></label>
+            <label class="switch"><input type="checkbox" id="ai-auto" /><span>自动提炼知识卡片</span></label>
             <div class="field"><label>自动间隔（分钟）</label><input type="number" id="ai-interval" class="input" min="15" /></div>
           </div>
           <div class="row gap">
@@ -199,14 +226,22 @@
           <pre id="ai-test-result" class="result-box muted"></pre>
         </div>
         <div class="card">
-          <h3>本地 API（供其他 AI 调用）</h3>
-          <label class="switch"><input type="checkbox" id="api-enabled" /><span>启用本机 HTTP API</span></label>
+          <h3>导出与本机 API</h3>
+          <label class="switch"><input type="checkbox" id="api-enabled" /><span>启用本机 HTTP API（供其他 AI 查询）</span></label>
           <div class="grid two">
             <div class="field"><label>端口</label><input type="number" id="api-port" class="input" /></div>
             <div class="field"><label>Token</label><input id="api-token" class="input" readonly /></div>
           </div>
-          <p class="muted tiny">示例：<code>GET /activities?q=项目</code> · <code>GET /cards</code> · <code>POST /ask {"question":"..."}</code> · Header: <code>Authorization: Bearer &lt;token&gt;</code></p>
-          <button class="btn" id="btn-save-api">保存 API 设置</button>
+          <p class="tiny">示例：<code>GET /activities?q=项目</code> · <code>GET /cards</code> · <code>POST /ask {"question":"..."}</code></p>
+          <div class="row gap">
+            <button class="btn" id="btn-save-api">保存 API 设置</button>
+            <button class="btn" id="btn-export2">导出 Obsidian 库</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>关于</h3>
+          <p>知迹 MindTrace v1.0.0 — 经你授权后，把桌面足迹整理成个人数字资产。</p>
+          <p class="tiny">不做键盘记录，不破解微信数据库，默认不上传云端。数据目录见设置保存后的 userData。</p>
         </div>
       </section>
     </main>

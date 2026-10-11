@@ -4,25 +4,31 @@ const path = require('path');
 
 const DEFAULTS = {
   authorized: false,
+  onboardingCompleted: false,
   authorizedAt: null,
-  theme: 'dark',
+  theme: 'light',
   language: 'zh-CN',
   startOnBoot: false,
+  startCollectingOnLaunch: true,
   collectors: {
-    window: true,
-    browser: true,
-    documents: true,
-    clipboard: true,
-    screenshots: true
+    window: false,
+    browser: false,
+    documents: false,
+    clipboard: false,
+    screenshots: false
   },
   privacy: {
     paused: false,
-    blacklistApps: ['密码', 'Password', '1Password', 'Bitwarden', 'KeePass', '银行', 'Bank'],
-    blacklistSites: ['password', 'banking', '支付宝', '网银'],
-    blacklistKeywords: ['密码', '验证码', '身份证号', '银行卡'],
+    blacklistApps: ['密码', 'Password', '1Password', 'Bitwarden', 'KeePass', '银行', 'Bank', '微信安全'],
+    blacklistSites: ['password', 'banking', '支付宝', '网银', 'login'],
+    blacklistKeywords: ['密码', '验证码', '身份证号', '银行卡', 'cvv'],
     clipboardMaxLen: 5000,
-    screenshotIntervalSec: 120,
-    idleThresholdSec: 180
+    screenshotIntervalSec: 300,
+    idleThresholdSec: 180,
+    autoRedact: true,
+    pauseHotkey: 'CommandOrControl+Shift+M',
+    onlyScreenshotApps: ['WeChat', 'WXWork', 'Feishu', 'DingTalk', '微信', '企业微信', '飞书', '钉钉'],
+    screenshotRetainDays: 14
   },
   watchFolders: [],
   ai: {
@@ -31,12 +37,13 @@ const DEFAULTS = {
     apiKey: '',
     model: 'deepseek-chat',
     visionModel: '',
+    temperature: 0.3,
     autoSummarize: true,
     summarizeIntervalMin: 60
   },
   api: {
-    enabled: true,
-    port: 17890,
+    enabled: false,
+    port: 17321,
     token: ''
   },
   export: {

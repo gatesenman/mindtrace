@@ -1,8 +1,8 @@
 const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { app } = require('electron');
-const { v4: uuidv4 } = require('uuid');
 
 let SQL = null;
 let db = null;
@@ -134,7 +134,7 @@ function get(sql, params = []) {
 }
 
 function insertActivity(row) {
-  const id = row.id || uuidv4();
+  const id = row.id || crypto.randomUUID();
   const now = Date.now();
   run(
     `INSERT INTO activities (id,type,started_at,ended_at,duration_ms,app_name,process_name,window_title,url,file_path,content,meta,created_at)
@@ -163,7 +163,7 @@ function updateActivityEnd(id, endedAt, durationMs) {
 }
 
 function insertScreenshot(row) {
-  const id = row.id || uuidv4();
+  const id = row.id || crypto.randomUUID();
   const now = Date.now();
   run(
     `INSERT INTO screenshots (id,taken_at,file_path,app_name,window_title,description,ocr_text,created_at)
@@ -192,7 +192,7 @@ function upsertKnowledgeCard(card) {
     );
     return existing.id;
   }
-  const id = card.id || uuidv4();
+  const id = card.id || crypto.randomUUID();
   run(
     `INSERT INTO knowledge_cards (id,kind,title,summary,content,tags,links,source_ids,importance,created_at,updated_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
@@ -226,7 +226,7 @@ function upsertJournal(j) {
     ]);
     return existing.id;
   }
-  const id = uuidv4();
+  const id = crypto.randomUUID();
   run(
     `INSERT INTO journals (id,period,period_key,title,content,highlights,stats,created_at) VALUES (?,?,?,?,?,?,?,?)`,
     [id, j.period, j.period_key, j.title || null, j.content || null, j.highlights ? JSON.stringify(j.highlights) : null, j.stats ? JSON.stringify(j.stats) : null, now]
@@ -235,7 +235,7 @@ function upsertJournal(j) {
 }
 
 function addChatMessage(role, content) {
-  const id = uuidv4();
+  const id = crypto.randomUUID();
   run(`INSERT INTO chat_messages (id,role,content,created_at) VALUES (?,?,?,?)`, [id, role, content, Date.now()]);
   return id;
 }

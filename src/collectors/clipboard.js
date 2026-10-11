@@ -1,4 +1,5 @@
 const store = require('../main/store');
+const { redactText, looksLikePassword } = require('../privacy/redact');
 
 let timer = null;
 let lastText = '';
@@ -26,13 +27,18 @@ function poll() {
       return;
     }
     lastText = text;
-    const content = text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
+    let content = text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
+    if (looksLikePassword(content)) {
+      content = '[已隐藏-可能为密码]';
+    } else if (cfg.privacy?.autoRedact !== false) {
+      content = redactText(content);
+    }
     store.insertActivity({
       type: 'clipboard',
       started_at: Date.now(),
       ended_at: Date.now(),
       content,
-      meta: { length: text.length }
+      meta: { length: text.length, redacted: content !== text.slice(0, maxLen) && content !== text.slice(0, maxLen) + '…' }
     });
   } catch (e) {
     console.error('clipboard', e.message);
