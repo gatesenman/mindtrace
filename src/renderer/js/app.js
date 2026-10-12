@@ -148,11 +148,12 @@ function updateStatus() {
   if (!auth || !state.config.onboardingCompleted) {
     pill.className = 'status-pill off'; $('status-text').textContent = '未就绪';
   } else if (paused || !anyOn) {
-    pill.className = 'status-pill pause'; $('status-text').textContent = paused ? '已暂停' : '采集项均关';
+    pill.className = 'status-pill pause'; $('status-text').textContent = paused ? '已暂停' : '未开启采集项';
   } else {
     pill.className = 'status-pill on'; $('status-text').textContent = '采集中';
   }
-  $('btn-pause').textContent = paused ? '恢复采集' : '暂停采集';
+  $('btn-pause').textContent = paused ? '恢复采集' : (anyOn ? '暂停采集' : '去开启采集项');
+  $('btn-pause').dataset.mode = (!paused && !anyOn) ? 'setup' : '';
   $('api-hint').textContent = `http://127.0.0.1:${state.apiPort}`;
 }
 
@@ -275,9 +276,10 @@ function isDemoMeta(meta) {
 async function loadTimeline(opts = {}) {
   if (timelineZoom !== 'day' && !opts.forceDay) {
     const level = timelineZoom;
+    const levelZh = { hour: '小时', week: '周', month: '月' }[level] || level;
     const rolls = await window.mindtrace.getRollups({ level });
     if (!rolls.length) {
-      $('timeline-list').innerHTML = emptyState(`暂无「${level}」汇总`, '可先采集一段时间，或在 Wiki 页生成日卷 / 小时卷。');
+      $('timeline-list').innerHTML = emptyState(`暂无按${levelZh}汇总的记录`, '汇总在采集满一个周期后自动生成；也可在 Wiki 页手动「生成今日日卷 / 上一小时卷」。');
       return;
     }
     $('timeline-list').innerHTML = rolls.map(r => `
@@ -619,6 +621,7 @@ function bind() {
   };
 
   $('btn-pause').onclick = async () => {
+    if ($('btn-pause').dataset.mode === 'setup') { showView('collect'); return; }
     const next = !state.config.privacy.paused;
     await window.mindtrace.setPaused(next);
     await refreshState();
@@ -682,7 +685,7 @@ function bind() {
       ask();
     });
   });
-  $('chat-input').onkeydown = e => { if (e.key === 'Enter') ask(); };
+  $('chat-input').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); ask(); } };
 
   $('btn-save-collect').onclick = async () => {
     const demoOn = !!$('demo-mode')?.checked;
@@ -883,11 +886,12 @@ async function ask() {
   const r = await window.mindtrace.ask(q);
   $('thinking')?.remove();
   if (!r.ok) {
-    log.insertAdjacentHTML('beforeend', `<div class="bubble assistant">${escapeHtml('错误：' + r.error)}</div>`);
+    const needKey = /key|配置/i.test(r.error || '');
+    log.insertAdjacentHTML('beforeend', `<div class="bubble assistant error">${needKey ? '还没有配置 AI 模型，暂时无法生成回答。' : '回答生成失败：' + escapeHtml(r.error)}<br><button class="btn sm" onclick="document.querySelector('[data-view=ai]').click()">${needKey ? '去设置 AI 模型' : '打开设置检查'}</button></div>`);
   } else {
     const wrap = document.createElement('div');
     wrap.className = 'bubble assistant';
-    wrap.innerHTML = `${escapeHtml(r.answer)}${renderCitations(r.citations || [])}`;
+    wrap.innerHTML = `${escapeHtml(r.answer).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')}${renderCitations(r.citations || [])}`;
     log.appendChild(wrap);
     bindCiteClicks(wrap);
   }

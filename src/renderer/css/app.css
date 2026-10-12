@@ -39,7 +39,7 @@
   --text: #0F1218;
   --text-1: #0F1218;
   --text-2: #5B6170;
-  --text-3: #8B929E;
+  --text-3: #6B7280; /* UX: 3.13→4.83:1 on #FFF, WCAG AA */
   --text-inv: #FFFFFF;
   --text-secondary: var(--text-2);
   --text-tertiary: var(--text-3);
@@ -100,7 +100,7 @@
   --text: #ECEEF2;
   --text-1: #ECEEF2;
   --text-2: #9AA1AE;
-  --text-3: #6B7280;
+  --text-3: #8B93A1; /* UX dark: 3.6→5.6:1 on #161A22 */
   --text-secondary: var(--text-2);
   --text-tertiary: var(--text-3);
   --brand: #5B8CFF;
@@ -578,7 +578,8 @@ textarea.input { height: auto; padding: 10px 12px; }
   display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-md);
   cursor: pointer; color: var(--text-1); font-size: 13px; border: 0; background: transparent; width: 100%; text-align: left;
 }
-.cmd-item:hover, .cmd-item.active { background: var(--bg-active); color: var(--brand); }
+.cmd-item:hover { background: var(--bg-hover); }
+.cmd-item.active { background: var(--bg-active); color: var(--brand); box-shadow: inset 2px 0 0 var(--brand); }
 .cmd-item .hint { margin-left: auto; font-size: 11px; color: var(--text-3); }
 
 .result-box {
@@ -774,3 +775,18 @@ table.data th { white-space: nowrap; }
 .mem-head h3 { white-space: nowrap; }
 .grid.two > * { min-width: 0; }
 input[type="datetime-local"].input { width: 100%; min-width: 0; }
+/* ===== UX audit prototype fixes (ux-fixes.patch) ===== */
+/* Dark primary button: white on #5B8CFF is 3.16:1 → use AA-safe fill */
+[data-theme="dark"] .btn.primary, body.theme-dark .btn.primary { background: #3B6CED; border-color: #3B6CED; color: #fff; }
+[data-theme="dark"] .btn.primary:hover, body.theme-dark .btn.primary:hover { background: #2F5AD4; border-color: #2F5AD4; }
+/* Status pill text: amber/green text on white fails AA (3.2/3.4) */
+.status-pill.on { color: #047857; }
+.status-pill.pause { color: #B45309; }
+[data-theme="dark"] .status-pill.on, body.theme-dark .status-pill.on { color: #34D399; }
+[data-theme="dark"] .status-pill.pause, body.theme-dark .status-pill.pause { color: #FBBF24; }
+/* Tabular numbers for KPI / durations so digits don't jitter */
+.kpi-value, .kpi .value, .rank-dur, .tl-time { font-variant-numeric: tabular-nums; }
+/* Chat: rendered bold + error bubble */
+.bubble strong { font-weight: 600; color: var(--text-1); }
+.bubble.error { border: 1px solid rgba(225,29,72,.3); background: rgba(225,29,72,.06); }
+.bubble.error .btn { margin-top: 8px; }
