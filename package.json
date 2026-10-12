@@ -15,7 +15,9 @@
     "test:e2e": "electron scripts/e2e-ai-test.js --no-sandbox",
     "mock:ai": "node scripts/mock-openai-server.js 3921",
     "shots": "electron . --dev --screenshot-tour --no-sandbox --user-data-dir=/tmp/mindtrace-shots",
-    "test:perf": "electron scripts/e2e-perf-10k.js --no-sandbox"
+    "test:perf": "electron scripts/e2e-perf-10k.js --no-sandbox",
+    "test:v23": "electron tests/v23-acceptance.js --no-sandbox",
+    "test:zhtime": "node tests/zhtime.test.js"
   },
   "build": {
     "appId": "com.mindtrace.app",

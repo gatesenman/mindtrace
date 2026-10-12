@@ -271,6 +271,15 @@ app.whenReady().then(async () => {
     pass('FORGET 跨三域遗忘 + 墓碑阻止复活', leftover === 0 && !store.get(`SELECT 1 FROM entities WHERE norm_name='张三'`), JSON.stringify(f));
     const mcp = require('../src/mcp/server');
     const tools = (mcp.TOOLS || []).map(t => t.name);
+    const J = (r) => JSON.parse(r.content[0].text);
+    const rp = J(await mcp.callTool('get_profile', {}));
+    const rr = J(await mcp.callTool('recall', { query: 'TypeScript', budget: 800 }));
+    const rm = J(await mcp.callTool('remember', { text: '我喜欢用机械键盘写代码' }));
+    const ra = J(await mcp.callTool('add_calendar_item', { title: '和王五对合同', time: '后天上午10点', kind: 'meeting' }));
+    const rg = J(await mcp.callTool('get_calendar', { from: '2026-10-12', days: 7, include_proposed: true }));
+    calendar.blocks.buildEpisodes(D('2026-10-05T00:00:00'), D('2026-10-06T00:00:00'));
+    const re = J(await mcp.callTool('get_episodes', { day: '2026-10-05' }));
+    pass('MCP 工具调用（profile/recall/remember/日历/情景）', rp.profile && rr.tokens <= 800 && rm.status === 'pending' && ra.status === 'proposed' && Array.isArray(rg.plan) && re.length >= 1, `recall=${rr.memories.length} episodes=${re.length}`);
     pass('MCP 新工具注册', ['get_profile', 'recall', 'get_episodes', 'remember', 'get_calendar', 'add_calendar_item', 'forget_subject'].every(n => tools.includes(n)), tools.join(','));
   } catch (e) { console.error(e); pass('未捕获异常', false, e.stack); }
   const ok = results.filter(r => r.ok).length;

@@ -1,4 +1,4 @@
-# 知迹 MindTrace 2.2
+# 知迹 MindTrace 2.3
 
 把每天散落在浏览器、IDE、文档、下载、截屏和各个窗口里的操作，**经你授权后**整理成可复用的个人数字资产，并沉淀为 **LLM 维护的 Wiki + 记忆库**。
 
@@ -6,14 +6,15 @@
 - **分项授权**：窗口 / 浏览器 / IDE / 笔记 / 下载 / 最近文件 / UI Automation / 剪贴板 / 截屏识图 —— **默认全部关闭**
 - **不卡顿架构**：采集走低优先级 Worker（事件总线 + 批处理 + CPU/电量预算），目标平均 CPU <3%、内存 <300MB
 - **时间线缩放**：小时 / 天 / 周 / 月 汇总卷
-- **LLM Wiki**：时间卷 · 实体页 · 记忆条目（事实/偏好/决策/待办），可导出 Obsidian
+- **知识库 · 记忆 · 日历（2.3）**：电脑上发生的一切 → 带引用的实体页、关于你的记忆、计划 vs 实际的日历；一个「待处理」中心统一确认
+- **LLM Wiki**：时间卷 · 实体页 · 记忆条目，可导出 Obsidian
 - **可被其他 AI 使用**：本机 HTTP API + MCP Server（`api.port+1`）
 - **企业级界面**：自定义标题栏、可折叠侧栏、Ctrl+K 命令面板、KPI/图表、双主题
 - **体验示例数据**：无需真实采集即可预览完整界面
 
 > 不是监控软件。不做密码键盘记录，不破解微信数据库，不默认上传云端。详见下方「明确不做」。
 
-设计文档：[`../mindtrace-design/PRD-2.0.md`](../mindtrace-design/PRD-2.0.md) · [`../mindtrace-design/DESIGN-SYSTEM-2.md`](../mindtrace-design/DESIGN-SYSTEM-2.md) · [`../mindtrace-design/DESIGN.md`](../mindtrace-design/DESIGN.md)
+设计文档：[`../mindtrace-design/UNIFIED-2.3.md`](../mindtrace-design/UNIFIED-2.3.md)（2.3 总体架构） · [`../mindtrace-design/PRD-2.0.md`](../mindtrace-design/PRD-2.0.md) · [`../mindtrace-design/DESIGN-SYSTEM-2.md`](../mindtrace-design/DESIGN-SYSTEM-2.md) · [`../mindtrace-design/DESIGN.md`](../mindtrace-design/DESIGN.md)
 
 ---
 
@@ -89,6 +90,42 @@ npm run build:win
 - 总览顶部有设置进度清单；提示条区分成功、失败、信息三类，并支持撤销
 
 设计与竞品对标见 `mindtrace-design/PRD-2.2.md`，UX 走查见 `mindtrace-design/UX-AUDIT.md`。
+
+## 2.3：知识库 · 记忆 · 日历（统一架构）
+
+一条流水线，三个产物，一个确认中心。总体设计与决策记录见 `../mindtrace-design/UNIFIED-2.3.md`。
+
+```
+活动 → 资料(documents，URL 去 utm/hash 归一) → 资料块(chunks，observed_at / privacy_level)
+     → 统一抽取（每 ≤8 块一次调用；无 AI 时用本地规则）
+     → 知识库：实体（别名 / 拼音 / 编辑距离匹配，≥2 次目击转正）→ 事实（证据 + 冲突）→ 实体页（引用 · 我的笔记 · 修订 · log.md）
+     → 记忆：偏好 / 习惯 / 技能 / 关系 / 个人事实 / 决策（置信 · 衰减 · 强化 · 取代 · 锁定）
+     → 日历：会议 / 待办 / 截止 / 提醒（默认「建议」，跨来源合并，改期变成建议）+ 实际活动块 + 会议识别
+     → 待处理：记忆审核 · 日程建议 · 改期 · 实体合并 · 事实冲突
+```
+
+| 页面 | 快捷键 | 说明 |
+|------|--------|------|
+| 今日总览 | Ctrl+1 | 新增「计划 vs 实际」双轨条、今日日程、今日新知、记忆与待处理 |
+| 知识库 | Ctrl+3 | 实体列表（拼音搜索）· 实体页（脚注引用可点击定位）· 事实与证据 · 修订历史 · 变更日志 · **我的笔记**（AI 永不修改）· 遗忘 |
+| 记忆 | Ctrl+4 | 生效 / 待审核 / 已取代 / 已归档 / 已驳回；置信与强度条；证据与历史；编辑即锁定；置顶；导出 JSON；「关于我」档案 |
+| 日历 | Ctrl+8 | 日 / 周 / 月 / 议程；计划轨与实际轨对照；中文快速添加（「明天下午3点 和李四评审」「每周一上午10点 周会」）；AI 建议；导出 ICS / 订阅链接 |
+| 待处理 | Ctrl+9 | 全部 AI 产出在此确认；「不再提示」写入墓碑 |
+
+关键规则：
+
+- **人工编辑优先**：编辑过的记忆、确认过的事实、修改过的日程字段都会锁定，AI 不再覆盖；「我的笔记」区块逐字保留。
+- **证据优先**：每条事实 / 记忆 / AI 日程都在统一 `evidence` 表里关联到资料块与原始活动；实体页事实 100% 带脚注。
+- **隐私**：只采到窗口标题的内容（`privacy_level=title`）不进入资料块、AI、记忆与日历；敏感内容（证件号、卡号、密码、验证码等）被拦截并记审计；`遗忘某人/某项目` 会级联删除知识库、记忆、日历中的相关内容并写墓碑，可选同时删除原始活动；按时间段删除会级联删除只来自该时段的派生内容。
+- **衰减**：统一半衰期表（项目 30 天、人物 60 天、偏好 180 天、决策不衰减…）；实体页超过半衰期 1.5 倍标记「可能过时」，记忆强度过低自动归档（置顶除外）。
+- **预算**：每日 token 预算（默认 20 万）按 抽取 60% / 编译 25% / 汇总 15% 分配；超出后自动回落到本地规则抽取。
+- **中文时间解析** `src/calendar/zhtime.js`：相对日期、星期、上下午、「三点一刻」、区间「2-4点」、「周五前」、重复规则、2026 国庆调休、PT/ET 时区。
+- **提醒**：Windows 系统通知 + 应用内横幅（稍后 10 分钟）。
+- **ICS**：设置中开启本机 API 后，`GET http://127.0.0.1:17321/calendar/feed.ics?token=<订阅令牌>` 可被 Outlook / 手机日历订阅（错误令牌返回 401）。
+
+存储引擎：2.3 起使用 **better-sqlite3 11.10（WAL + 真 FTS5）**，Windows x64 预编译 `.node`（Electron 33 / ABI 130）位于安装目录 `resources/app.asar.unpacked/native/win32-x64/`；加载失败时自动回落 sql.js + FTS4，再回落 bigram LIKE。中文检索在写入与查询两侧做 bigram 预分词。FTS 写入错误不再被吞掉，计数可在「诊断」中查看。
+
+---
 
 ## 首次授权（必读）
 
@@ -183,7 +220,7 @@ Header：`Authorization: Bearer <Token>`
 
 ### MCP（标准 JSON-RPC 2.0，端口 17322）
 
-端点 `POST http://127.0.0.1:17322/mcp`，方法 `initialize`、`tools/list`、`tools/call`、`ping`。工具：`search`、`get_timeline`、`get_wiki_page`、`list_wiki_pages`、`get_memories`（仅已审核）、`get_rollups`、`get_analytics`、`add_note`。旧接口 `GET /mcp/tools`、`POST /mcp/call` 仍然保留。
+端点 `POST http://127.0.0.1:17322/mcp`，方法 `initialize`、`tools/list`、`tools/call`、`ping`。工具：`search`、`get_timeline`、`get_wiki_page`、`list_wiki_pages`、`get_memories`（仅已审核）、`get_rollups`、`get_analytics`、`add_note`；2.3 新增 `get_profile`（关于我 + 进行中的承诺，不含私密）、`recall`（按 token 预算召回记忆/情景/承诺，档案 ≤40%）、`get_episodes`、`remember`（写入后进入待处理）、`get_calendar`、`add_calendar_item`（进入待处理）、`complete_calendar_item`、`forget_subject`（仅发起请求，需在应用内确认）。旧接口 `GET /mcp/tools`、`POST /mcp/call` 仍然保留。
 
 Cursor（`~/.cursor/mcp.json`）：
 
@@ -225,8 +262,12 @@ curl -s http://127.0.0.1:17321/health -H "Authorization: Bearer <token>"
 |------|------|
 | 今日 | 专注时长、浏览页数、摘要、应用分布、最近活动 |
 | 时间线 | **小时/天/周/月** 缩放 + 类型检索 |
-| 知识库 | 日刊 / 主题 / 卡片 |
-| Wiki | 时间卷 · 实体页 · 记忆 |
+| 日历 | 日/周/月/议程，计划 vs 实际 |
+| 知识库 | 实体页（引用 · 我的笔记 · 修订） |
+| 记忆 | 关于我：证据 · 衰减 · 锁定 |
+| 待处理 | 统一确认 AI 产出 |
+| 报告 | 日刊 / 主题 / 卡片 |
+| Wiki | 时间卷 |
 | 问问历史 | 建议问题；示例模式下预置带引用问答 |
 | 采集中心 | 开关（含 IDE/笔记/下载/UIA 等）、状态、黑名单、示例数据 |
 | 设置 | AI、本机 API、关于 |
@@ -245,7 +286,7 @@ curl -s http://127.0.0.1:17321/health -H "Authorization: Bearer <token>"
 | 截屏 | 感知哈希跳过未变化帧 |
 | UIA | 前台窗口节流采样 |
 
-本地库使用 **sql.js**（整库入内存）+ **FTS5**；`better-sqlite3` 预编译包在交叉打包就绪前仍保留 sql.js 路径。高强度采集可缩短保留天数。
+本地库使用 **better-sqlite3（WAL）+ FTS5**，sql.js + FTS4 作为回落。1 万条事件写入约 0.5 秒，归一化 + 分块约 0.3 秒；1 万条记忆 recall < 50ms；3000 条日程月视图 < 300ms。高强度采集可缩短保留天数。
 
 ---
 
@@ -260,6 +301,13 @@ node scripts/mock-openai-server.js 3921
 
 # 性能：模拟 1 万条事件
 ./node_modules/.bin/electron scripts/e2e-perf-10k.js --no-sandbox
+
+# 2.3 验收：KB-01..16 / 记忆 1..12 / 日历 T13..T20 / MCP / 遗忘（需 mock :3921 运行 KB-14）
+./node_modules/.bin/electron tests/v23-acceptance.js --no-sandbox
+MINDTRACE_SQLJS=1 ./node_modules/.bin/electron tests/v23-acceptance.js --no-sandbox   # sql.js 回落路径
+
+# 中文时间解析（日历 T1..T12，T10 农历除外）
+node tests/zhtime.test.js
 
 # 截图巡游
 npm run shots
@@ -289,7 +337,8 @@ A: `%APPDATA%/知迹 MindTrace/`。卸载时可选保留用户数据。
 ## 路线图摘要
 
 - **已交付（2.1.0）**：Worker 总线与预算、时间线缩放与 rollup、Wiki/记忆、快速笔记、IDE/下载/最近文件/UIA 采集器骨架、截屏 phash、FTS、MCP、e2e + 10k 性能测试  
-- **后续**：真正的 `utilityProcess` 隔离、WinRT OCR 生产路径、`better-sqlite3` win32 预构建、实体反链自动刷新 UI、更细的电池策略  
+- **已交付（2.3.0）**：better-sqlite3 + FTS5 + 中文 bigram；统一抽取流水线；知识库实体页（引用 / 我的笔记 / 修订 / log.md）；记忆 2.0；日历（计划 vs 实际、会议识别、提醒、ICS 订阅）；待处理中心；跨三域遗忘；8 个新 MCP 工具
+- **后续（P1）**：向量检索 + RRF 融合、Obsidian 回读、LLM 增量补丁式编译、合并撤销 UI、关系图谱、农历、外部日历同步 / CalDAV、AI 日计划、Windows 通知按钮（toast actions）、`utilityProcess` 隔离、WinRT OCR  
 
 ## 许可证
 
