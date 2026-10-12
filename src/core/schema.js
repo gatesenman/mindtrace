@@ -110,5 +110,20 @@ function migrate() {
   done = true;
 }
 function reset() { done = false; }
+/** 重建 chunks_fts / memories_fts（恢复备份后 rowid 会变化） */
+function reindex() {
+  migrate();
+  const bigram = require('../common/bigram');
+  store.transaction(() => {
+    if (store.get(`SELECT 1 FROM sqlite_master WHERE name='chunks_fts'`)) {
+      store.run(`DELETE FROM chunks_fts`);
+      for (const c of store.all(`SELECT c.rowid rid, c.text, d.title FROM chunks c LEFT JOIN documents d ON d.id=c.doc_id`)) store.run(`INSERT INTO chunks_fts (rowid,text,extra) VALUES (?,?,?)`, [c.rid, bigram.toIndexText(c.text || ''), bigram.toIndexText(c.title || '')]);
+    }
+    if (store.get(`SELECT 1 FROM sqlite_master WHERE name='memories_fts'`)) {
+      store.run(`DELETE FROM memories_fts`);
+      for (const m of store.all(`SELECT rowid rid, text, predicate, object FROM memories`)) store.run(`INSERT INTO memories_fts (rowid,text,extra) VALUES (?,?,?)`, [m.rid, bigram.toIndexText(m.text || ''), bigram.toIndexText(`${m.predicate || ''} ${m.object || ''}`)]);
+    }
+  });
+}
 
-module.exports = { migrate, reset };
+module.exports = { migrate, reset, reindex };

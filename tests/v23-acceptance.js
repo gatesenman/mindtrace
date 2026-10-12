@@ -265,6 +265,12 @@ app.whenReady().then(async () => {
     pass('INBOX 统一待处理（记忆/日程/合并/冲突）', cnt.memory > 0 && cnt.total >= cnt.memory, JSON.stringify(cnt));
     const prof = memory.getProfile({});
     pass('MCP get_profile 含开放承诺', prof.commitments.length > 0 && Object.keys(prof.profile).length > 0);
+    const pro = require('../src/pro');
+    const bk = path.join(UD, 'v23.mtbak'); pro.backup(bk, 'pw-123');
+    const nb = { e: store.get(`SELECT COUNT(*) c FROM entities`).c, c: store.get(`SELECT COUNT(*) c FROM calendar_events`).c };
+    store.run(`DELETE FROM entities`); store.run(`DELETE FROM calendar_events`); store.run(`DELETE FROM chunks`); try { store.run(`DELETE FROM chunks_fts`); } catch (_) {}
+    pro.restore(bk, 'pw-123');
+    pass('BACKUP 2.3 表加密备份/恢复 + FTS 重建', store.get(`SELECT COUNT(*) c FROM entities`).c === nb.e && store.get(`SELECT COUNT(*) c FROM calendar_events`).c === nb.c && kb.searchChunks('路线图').length > 0);
     const f = forget.forgetSubject('张三');
     const leftover = store.get(`SELECT COUNT(*) c FROM entities WHERE norm_name='张三' OR pinyin='zhangsan'`).c + store.get(`SELECT COUNT(*) c FROM chunks WHERE text LIKE '%张三%' OR text LIKE '%Zhang San%'`).c;
     act({ ts: ANCHOR, app: '微信', title: '张三', text: '和张三讨论了新的需求，张三说下周给反馈。' }); await run();

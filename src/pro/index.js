@@ -215,7 +215,9 @@ function memoryCounts() {
 }
 
 /* ───────────── Backup / restore (AES-256-GCM) ───────────── */
-const BACKUP_TABLES = ['activities', 'screenshots', 'knowledge_cards', 'journals', 'topics', 'chat_messages', 'wiki_pages', 'memories', 'rollups', 'llm_usage', 'jobs', 'audit_log'];
+const BACKUP_TABLES = ['activities', 'screenshots', 'knowledge_cards', 'journals', 'topics', 'chat_messages', 'wiki_pages', 'memories', 'rollups', 'llm_usage', 'jobs', 'audit_log',
+  // v2.3
+  'documents', 'chunks', 'entities', 'entity_aliases', 'mentions', 'claims', 'links', 'merge_suggestions', 'page_revisions', 'kb_log', 'evidence', 'tombstones', 'memory_events', 'episodes', 'calendar_events', 'calendar_rules', 'daily_plans', 'kv'];
 function dumpAll() {
   const data = {};
   for (const t of BACKUP_TABLES) { try { data[t] = store.all(`SELECT * FROM ${t}`); } catch (_) { data[t] = []; } }
@@ -279,6 +281,7 @@ function restore(filePath, passphrase, { mode = 'replace' } = {}) {
   try {
     store.reindexFts();
   } catch (_) {}
+  try { require('../core/schema').reindex(); } catch (e) { console.error('[restore] v23 reindex', e.message); }
   store.persist(true);
   audit('restore', mode, filePath, obj.counts);
   return { ok: true, counts: obj.counts };
@@ -358,7 +361,8 @@ function diagnostics({ appVersion, collectorStatus, logPath } = {}) {
     versions: process.versions, memory: process.memoryUsage(), config: cfg, tableCounts,
     collectors: collectorStatus || null, usage: usageSummary().month, memories: memoryCounts(),
     jobs: store.all(`SELECT status, COUNT(*) c FROM jobs GROUP BY status`),
-    recentAudit: listAudit({ limit: 50 }).map(a => ({ ts: a.ts, kind: a.kind, action: a.action })), logTail
+    recentAudit: listAudit({ limit: 50 }).map(a => ({ ts: a.ts, kind: a.kind, action: a.action })), logTail,
+    fts: store.ftsStatus(), v23: (() => { try { return { kb: require('../kb').stats(), pipeline: require('../core/pipeline').lastRun() }; } catch (_) { return null; } })()
   };
 }
 
