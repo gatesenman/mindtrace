@@ -69,7 +69,7 @@ window.MTCharts = {
       const pctBar = Math.round((r.total_ms || 0) / max * 100);
       const pctShare = Math.round((r.total_ms || 0) / total * 100);
       const mins = Math.round((r.total_ms || 0) / 60000);
-      const dur = mins < 60 ? `${mins} 分` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
+      const dur = mins < 60 ? `${mins}m` : (mins % 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${Math.floor(mins / 60)}h`);
       const color = this._badgeColor(name);
       return `<div class="app-rank-row">
         <div class="app-badge" style="background:${color}">${this._esc(initial)}</div>
