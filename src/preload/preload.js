@@ -27,6 +27,14 @@ contextBridge.exposeInMainWorld('mindtrace', {
   getById: (kind, id) => ipcRenderer.invoke('get-by-id', { kind, id }),
   getLogPath: () => ipcRenderer.invoke('get-log-path'),
   openLog: () => ipcRenderer.invoke('open-log'),
+  getRollups: (opts) => ipcRenderer.invoke('get-rollups', opts),
+  getWiki: (kind) => ipcRenderer.invoke('get-wiki', kind),
+  getMemories: (kind) => ipcRenderer.invoke('get-memories', kind),
+  searchFts: (q) => ipcRenderer.invoke('search-fts', q),
+  getBudget: () => ipcRenderer.invoke('get-budget'),
+  addQuickNote: (p) => ipcRenderer.invoke('add-quick-note', p),
+  buildRollup: (opts) => ipcRenderer.invoke('build-rollup', opts),
+  onQuickNote: (cb) => { const fn=(_e,d)=>cb(d); ipcRenderer.on('quick-note-open', fn); return ()=>ipcRenderer.removeListener('quick-note-open', fn); },
   onStatus: (cb) => {
     const fn = (_e, data) => cb(data);
     ipcRenderer.on('status', fn);

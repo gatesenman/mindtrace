@@ -181,6 +181,19 @@ app.whenReady().then(async () => {
     const unauth = await req('GET', '/health', null, 'wrong');
     pass('api-auth', unauth.status === 401);
 
+    // v2 smoke
+    store.insertActivityBatch([
+      { type: 'note', ts_start: Date.now(), app: '速记', title: 'v2 note', content: '速记测试内容 wiki memory' },
+      { type: 'download', ts_start: Date.now(), app: '下载', title: 'demo.pdf', content: 'PDF 摘录 知识库' }
+    ]);
+    const fts = store.searchFts('速记', 10);
+    pass('fts-note', fts.length >= 1, 'hits=' + fts.length);
+    const wiki = require('../src/wiki/engine');
+    await wiki.buildHourRollup(config, wiki.hourKey(Date.now()));
+    pass('hour-rollup', store.getRollups('hour').length >= 0, 'ok');
+    store.upsertMemory({ kind: 'fact', text: '用户偏好本地优先', confidence: 0.9 });
+    pass('memory', store.listMemories().length >= 1);
+
     apiServer.stop();
     store.closeStore();
   } catch (e) {

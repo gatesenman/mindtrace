@@ -92,6 +92,46 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_chat_created ON chat_messages(created_at);
+
+CREATE TABLE IF NOT EXISTS wiki_pages (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body_md TEXT,
+  backlinks TEXT,
+  updated_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE(kind, slug)
+);
+CREATE INDEX IF NOT EXISTS idx_wiki_kind ON wiki_pages(kind);
+
+CREATE TABLE IF NOT EXISTS memories (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  text TEXT NOT NULL,
+  confidence REAL DEFAULT 0.8,
+  evidence TEXT,
+  status TEXT DEFAULT 'active',
+  dedupe_key TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mem_dedupe ON memories(dedupe_key);
+CREATE INDEX IF NOT EXISTS idx_mem_kind ON memories(kind);
+
+CREATE TABLE IF NOT EXISTS rollups (
+  id TEXT PRIMARY KEY,
+  level TEXT NOT NULL,
+  period_key TEXT NOT NULL,
+  title TEXT,
+  summary_md TEXT,
+  stats TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(level, period_key)
+);
+
 `;
 
 async function initStore() {
@@ -431,6 +471,124 @@ function clearDemoData() {
   try { run(`DELETE FROM chat_messages`); } catch (_) {}
 }
 
+
+function upsertWikiPage(page) {
+  const now = Date.now();
+  const slug = page.slug || String(page.title || '').slice(0, 80);
+  const existing = get(`SELECT id FROM wiki_pages WHERE kind=? AND slug=?`, [page.kind, slug]);
+  if (existing) {
+    run(`UPDATE wiki_pages SET title=?, body_md=?, backlinks=?, updated_at=? WHERE id=?`, [
+      page.title, page.body_md || '', page.backlinks ? JSON.stringify(page.backlinks) : null, now, existing.id
+    ]);
+    return existing.id;
+  }
+  const id = page.id || crypto.randomUUID();
+  run(`INSERT INTO wiki_pages (id,kind,slug,title,body_md,backlinks,updated_at,created_at) VALUES (?,?,?,?,?,?,?,?)`, [
+    id, page.kind, slug, page.title, page.body_md || '', page.backlinks ? JSON.stringify(page.backlinks) : null, now, now
+  ]);
+  return id;
+}
+
+function upsertMemory(mem) {
+  const now = Date.now();
+  const key = mem.dedupe_key || crypto.createHash('sha1').update(String(mem.text || '').trim().toLowerCase()).digest('hex').slice(0, 16);
+  const existing = get(`SELECT id, confidence FROM memories WHERE dedupe_key=? AND status='active'`, [key]);
+  if (existing) {
+    run(`UPDATE memories SET text=?, confidence=?, evidence=?, updated_at=? WHERE id=?`, [
+      mem.text, Math.max(existing.confidence || 0, mem.confidence || 0.8),
+      mem.evidence ? JSON.stringify(mem.evidence) : null, now, existing.id
+    ]);
+    return existing.id;
+  }
+  const id = mem.id || crypto.randomUUID();
+  run(`INSERT INTO memories (id,kind,text,confidence,evidence,status,dedupe_key,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)`, [
+    id, mem.kind || 'fact', mem.text, mem.confidence ?? 0.8,
+    mem.evidence ? JSON.stringify(mem.evidence) : null, mem.status || 'active', key, now, now
+  ]);
+  return id;
+}
+
+function upsertRollup(r) {
+  const now = Date.now();
+  const existing = get(`SELECT id FROM rollups WHERE level=? AND period_key=?`, [r.level, r.period_key]);
+  if (existing) {
+    run(`UPDATE rollups SET title=?, summary_md=?, stats=?, updated_at=? WHERE id=?`, [
+      r.title || null, r.summary_md || '', r.stats ? JSON.stringify(r.stats) : null, now, existing.id
+    ]);
+    return existing.id;
+  }
+  const id = crypto.randomUUID();
+  run(`INSERT INTO rollups (id,level,period_key,title,summary_md,stats,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)`, [
+    id, r.level, r.period_key, r.title || null, r.summary_md || '', r.stats ? JSON.stringify(r.stats) : null, now, now
+  ]);
+  return id;
+}
+
+function indexActivityFts(row) {
+  try {
+    run(`DELETE FROM fts_events WHERE id=?`, [row.id]);
+    run(`INSERT INTO fts_events (id,title,content,url,path,app,type) VALUES (?,?,?,?,?,?,?)`, [
+      row.id, row.window_title || row.title || '', row.content || '', row.url || '', row.file_path || row.path || '', row.app_name || row.app || '', row.type || ''
+    ]);
+  } catch (e) {
+    // FTS may fail on first run if virtual table issue
+  }
+}
+
+function searchFts(q, limit = 50) {
+  if (!q || !String(q).trim()) return [];
+  try {
+    return all(
+      `SELECT id, title, content, url, path, app, type FROM fts_events WHERE fts_events MATCH ? LIMIT ?`,
+      [String(q).trim(), limit]
+    );
+  } catch (e) {
+    return searchActivities({ q, limit });
+  }
+}
+
+function getRollups(level, fromKey, toKey) {
+  let sql = `SELECT * FROM rollups WHERE level=?`;
+  const params = [level];
+  if (fromKey) { sql += ` AND period_key>=?`; params.push(fromKey); }
+  if (toKey) { sql += ` AND period_key<=?`; params.push(toKey); }
+  sql += ` ORDER BY period_key DESC LIMIT 200`;
+  return all(sql, params);
+}
+
+function listWiki(kind) {
+  if (kind) return all(`SELECT * FROM wiki_pages WHERE kind=? ORDER BY updated_at DESC LIMIT 200`, [kind]);
+  return all(`SELECT * FROM wiki_pages ORDER BY updated_at DESC LIMIT 300`);
+}
+
+function listMemories(kind) {
+  if (kind) return all(`SELECT * FROM memories WHERE kind=? AND status='active' ORDER BY updated_at DESC LIMIT 200`, [kind]);
+  return all(`SELECT * FROM memories WHERE status='active' ORDER BY updated_at DESC LIMIT 300`);
+}
+
+function insertActivityBatch(events) {
+  const ids = [];
+  for (const ev of events || []) {
+    const id = insertActivity({
+      type: ev.type,
+      started_at: ev.ts_start || ev.started_at || Date.now(),
+      ended_at: ev.ts_end || ev.ended_at || null,
+      duration_ms: ev.duration_ms || 0,
+      app_name: ev.app || ev.app_name || null,
+      process_name: ev.process || ev.process_name || null,
+      window_title: ev.title || ev.window_title || null,
+      url: ev.url || null,
+      file_path: ev.path || ev.file_path || null,
+      content: ev.content || null,
+      meta: ev.meta || { source: ev.source }
+    });
+    ids.push(id);
+    indexActivityFts({ id, ...ev, window_title: ev.title, app_name: ev.app, file_path: ev.path });
+  }
+  return ids;
+}
+
+
 function getDbPath() { return dbPath; }
 function closeStore() { if (db) { persist(true); db.close(); db = null; } }
 
@@ -439,5 +597,6 @@ module.exports = {
   run, all, get,
   insertActivity, updateActivityEnd, insertScreenshot, updateScreenshotDescription,
   upsertKnowledgeCard, upsertJournal, addChatMessage,
-  searchActivities, getTodayStats, getActivityById, getCardById, getJournalById, upsertTopic, clearDemoData
+  searchActivities, getTodayStats, getActivityById, getCardById, getJournalById, upsertTopic, clearDemoData,
+  upsertWikiPage, upsertMemory, upsertRollup, searchFts, getRollups, listWiki, listMemories, insertActivityBatch, indexActivityFts
 };

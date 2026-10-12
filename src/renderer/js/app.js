@@ -1,6 +1,7 @@
 const titles = {
   dashboard: ['今日', '把今天的忙碌，变成可复用的资产'],
   timeline: ['时间线', '按时间回看你的桌面足迹'],
+  wiki: ['Wiki', '时间卷 · 实体页 · 记忆'],
   knowledge: ['知识库', '日刊 · 主题 · 人物 · 项目 · 所学 · 待办'],
   chat: ['问问历史', '用自然语言检索你的数字资产'],
   collect: ['采集中心', '分项开关与隐私黑名单'],
@@ -8,6 +9,8 @@ const titles = {
 };
 
 let state = null;
+let timelineZoom = 'day';
+let wikiKind = '';
 let currentKind = '';
 let knowledgeTab = 'journals';
 let presets = {};
@@ -34,7 +37,7 @@ function fmtTime(ts) {
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 function typeLabel(t) {
-  return ({ window: '窗口', browser: '浏览', document: '文档', clipboard: '剪贴板', screenshot: '截屏' })[t] || t;
+  return ({ window: '窗口', browser: '浏览', document: '文档', clipboard: '剪贴板', screenshot: '截屏', note: '笔记', ide: 'IDE', download: '下载', file: '文件', uia: '界面文本' })[t] || t;
 }
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -105,6 +108,11 @@ function applyConfigToForm() {
   $('c-documents').checked = !!c.collectors.documents;
   $('c-clipboard').checked = !!c.collectors.clipboard;
   $('c-screenshots').checked = !!c.collectors.screenshots;
+  if ($('c-notes')) $('c-notes').checked = !!c.collectors.notes;
+  if ($('c-ide')) $('c-ide').checked = !!c.collectors.ide;
+  if ($('c-downloads')) $('c-downloads').checked = !!c.collectors.downloads;
+  if ($('c-files')) $('c-files').checked = !!c.collectors.files;
+  if ($('c-uia')) $('c-uia').checked = !!c.collectors.uia;
   $('shot-interval').value = c.privacy.screenshotIntervalSec;
   $('idle-threshold').value = c.privacy.idleThresholdSec;
   $('bl-apps').value = (c.privacy.blacklistApps || []).join('\n');
@@ -142,6 +150,8 @@ function showView(name) {
   if (name === 'knowledge') loadKnowledge();
   if (name === 'chat') loadChat();
   if (name === 'collect') loadCollectorStatus();
+  if (name === 'wiki') loadWiki();
+  if (name === 'timeline') {/* zoom-aware */}
 }
 
 async function loadDashboard() {
@@ -185,10 +195,49 @@ function isDemoMeta(meta) {
 }
 
 async function loadTimeline(opts = {}) {
+  if (timelineZoom !== 'day' && !opts.forceDay) {
+    const level = timelineZoom;
+    const rolls = await window.mindtrace.getRollups({ level });
+    if (!rolls.length) {
+      $('timeline-list').innerHTML = `<div class="empty">暂无「${level}」汇总。可先采集一段时间，或在 Wiki 页点击生成日卷/小时卷。</div>`;
+      return;
+    }
+    $('timeline-list').innerHTML = rolls.map(r => `
+      <div class="rollup-card" data-level="${escapeHtml(r.level)}" data-key="${escapeHtml(r.period_key)}">
+        <h4>${escapeHtml(r.title || r.period_key)}</h4>
+        <div class="preview">${escapeHtml((r.summary_md || '').replace(/[#>*`]/g,'').slice(0, 180))}</div>
+      </div>`).join('');
+    document.querySelectorAll('.rollup-card').forEach(card => {
+      card.onclick = () => {
+        if (card.dataset.level === 'month') { timelineZoom = 'week'; }
+        else if (card.dataset.level === 'week') { timelineZoom = 'day'; }
+        else if (card.dataset.level === 'day') {
+          timelineZoom = 'day';
+          document.querySelectorAll('#tl-zoom .chip').forEach(c => c.classList.toggle('active', c.dataset.zoom === 'day'));
+          loadTimeline({ forceDay: true, day: card.dataset.key });
+          return;
+        } else if (card.dataset.level === 'hour') {
+          timelineZoom = 'day';
+          document.querySelectorAll('#tl-zoom .chip').forEach(c => c.classList.toggle('active', c.dataset.zoom === 'day'));
+          const day = card.dataset.key.slice(0, 10);
+          loadTimeline({ forceDay: true, day });
+          return;
+        }
+        document.querySelectorAll('#tl-zoom .chip').forEach(c => c.classList.toggle('active', c.dataset.zoom === timelineZoom));
+        loadTimeline();
+      };
+    });
+    return;
+  }
   const q = opts.q != null ? opts.q : $('tl-q').value.trim();
   const type = $('tl-type').value;
-  const items = await window.mindtrace.getTimeline({ q, type, from: opts.from || (Date.now() - 7 * 86400000), limit: opts.limit || 200 });
-  // If jumping to id not in list, fetch by id and prepend
+  let from = opts.from || (Date.now() - 7 * 86400000);
+  let to = opts.to || Date.now();
+  if (opts.day) {
+    from = new Date(opts.day + 'T00:00:00').getTime();
+    to = new Date(opts.day + 'T23:59:59').getTime();
+  }
+  const items = await window.mindtrace.getTimeline({ q, type, from, to, limit: opts.limit || 200 });
   if (opts.focusId && !items.find(x => x.id === opts.focusId)) {
     const r = await window.mindtrace.getById('activity', opts.focusId);
     if (r.ok && r.item) items.unshift(r.item);
@@ -324,6 +373,34 @@ function parseMsgCitations(m) {
   if (!m.citations) return [];
   if (Array.isArray(m.citations)) return m.citations;
   try { return JSON.parse(m.citations); } catch { return []; }
+}
+
+
+async function loadWiki() {
+  const pages = await window.mindtrace.getWiki(wikiKind || undefined);
+  const mems = await window.mindtrace.getMemories();
+  $('wiki-list').innerHTML = pages.map(p => `
+    <div class="list-item" style="grid-template-columns: 72px 1fr; cursor:pointer" data-slug="${escapeHtml(p.slug)}">
+      <div class="tag">${escapeHtml(p.kind)}</div>
+      <div><b>${escapeHtml(p.title)}</b><div class="muted tiny">${escapeHtml((p.body_md||'').slice(0,80))}</div></div>
+    </div>`).join('') || '<div class="empty">暂无 Wiki 页。生成日卷后将自动出现时间卷与实体。</div>';
+  $('memory-list').innerHTML = mems.map(m => `
+    <div class="list-item" style="grid-template-columns: 72px 1fr">
+      <div class="tag">${escapeHtml(m.kind)}</div>
+      <div>${escapeHtml(m.text)} <span class="tiny muted">· ${(m.confidence*100|0)}%</span></div>
+    </div>`).join('') || '<div class="empty">暂无记忆条目</div>';
+  document.querySelectorAll('#wiki-list .list-item').forEach(el => {
+    el.onclick = () => {
+      const page = pages.find(x => x.slug === el.dataset.slug);
+      if (!page) return;
+      $('wiki-body').classList.remove('muted');
+      $('wiki-body').textContent = page.body_md || '';
+    };
+  });
+  const budget = await window.mindtrace.getBudget();
+  if (budget && $('collector-status-list')) {
+    /* optional */
+  }
 }
 
 async function loadChat() {
@@ -519,7 +596,12 @@ function bind() {
         browser: $('c-browser').checked,
         documents: $('c-documents').checked,
         clipboard: $('c-clipboard').checked,
-        screenshots: $('c-screenshots').checked
+        screenshots: $('c-screenshots').checked,
+        notes: !!$('c-notes')?.checked,
+        ide: !!$('c-ide')?.checked,
+        downloads: !!$('c-downloads')?.checked,
+        files: !!$('c-files')?.checked,
+        uia: !!$('c-uia')?.checked
       },
       privacy: {
         screenshotIntervalSec: Number($('shot-interval').value) || 300,
@@ -568,6 +650,59 @@ function bind() {
     await refreshState();
     toast('API 设置已保存');
   };
+  
+  document.querySelectorAll('#tl-zoom .chip').forEach(ch => {
+    ch.addEventListener('click', () => {
+      document.querySelectorAll('#tl-zoom .chip').forEach(x => x.classList.remove('active'));
+      ch.classList.add('active');
+      timelineZoom = ch.dataset.zoom;
+      loadTimeline();
+    });
+  });
+  document.querySelectorAll('#wiki-kind-chips .chip').forEach(ch => {
+    ch.addEventListener('click', () => {
+      document.querySelectorAll('#wiki-kind-chips .chip').forEach(x => x.classList.remove('active'));
+      ch.classList.add('active');
+      wikiKind = ch.dataset.wkind || '';
+      loadWiki();
+    });
+  });
+  $('btn-build-day')?.addEventListener('click', async () => {
+    toast('正在生成日卷…');
+    const r = await window.mindtrace.buildRollup({ level: 'day' });
+    toast(r.ok ? '日卷已生成' : (r.error || '失败'));
+    loadWiki();
+  });
+  $('btn-build-hour')?.addEventListener('click', async () => {
+    toast('正在生成小时卷…');
+    const r = await window.mindtrace.buildRollup({ level: 'hour' });
+    toast(r.ok ? '小时卷已生成' : (r.error || '失败'));
+    loadWiki();
+  });
+  const openQn = () => { $('quick-note-modal')?.classList.remove('hidden'); $('qn-body')?.focus(); };
+  const closeQn = () => $('quick-note-modal')?.classList.add('hidden');
+  $('qn-cancel')?.addEventListener('click', closeQn);
+  $('qn-save')?.addEventListener('click', async () => {
+    await window.mindtrace.addQuickNote({ title: $('qn-title').value.trim(), content: $('qn-body').value.trim() });
+    $('qn-title').value = ''; $('qn-body').value = '';
+    closeQn(); toast('速记已保存');
+  });
+  window.mindtrace.onQuickNote?.(() => { showView('dashboard'); openQn(); });
+  $('global-search')?.addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter') return;
+    const q = $('global-search').value.trim();
+    if (!q) return;
+    const hits = await window.mindtrace.searchFts(q);
+    showView('timeline');
+    timelineZoom = 'day';
+    document.querySelectorAll('#tl-zoom .chip').forEach(c => c.classList.toggle('active', c.dataset.zoom === 'day'));
+    $('tl-q').value = q;
+    $('timeline-list').innerHTML = hits.map(h => `
+      <div class="tl-item"><div class="time"><div class="tag">${escapeHtml(h.type||'')}</div></div>
+      <div><div><b>${escapeHtml(h.app||'')}</b> ${escapeHtml(h.title||'')}</div>
+      <div class="meta">${escapeHtml((h.content||'').slice(0,120))}</div></div></div>`).join('') || '<div class="empty">无全文结果</div>';
+  });
+
   window.mindtrace.onStatus(async (data) => {
     await refreshState();
     if (data?.toast) toast(data.toast);

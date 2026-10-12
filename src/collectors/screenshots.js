@@ -6,6 +6,7 @@ const windowTracker = require('./windowTracker');
 const prompts = require('../ai/prompts');
 const { visionDescribe, parseJsonLoose } = require('../ai/client');
 const status = require('../main/collectorStatus');
+const { sampleHash, similar } = require('../worker/phash');
 const { redactText } = require('../privacy/redact');
 
 let timer = null;
@@ -13,6 +14,8 @@ let getConfig = () => ({});
 let desktopCapturer = null;
 let BrowserWindow = null;
 let visionQueue = Promise.resolve();
+let lastPhash = null;
+let bus = null;
 
 function shotDir() {
   const dir = path.join(app.getPath('userData'), 'screenshots');
@@ -119,6 +122,12 @@ async function capture(force = false) {
     if (!sources.length) return null;
     const source = sources[0];
     const png = source.thumbnail.toPNG();
+    const phash = sampleHash(png);
+    if (!force && similar(phash, lastPhash)) {
+      status.ok('screenshots', '画面未变，跳过');
+      return null;
+    }
+    lastPhash = phash;
     const now = Date.now();
     const file = path.join(shotDir(), `shot-${now}.png`);
     fs.writeFileSync(file, png);
@@ -136,9 +145,9 @@ async function capture(force = false) {
       window_title: cur?.title || '截图',
       file_path: file,
       content: null,
-      meta: { screenshotId: id, visionPending: true }
+      meta: { screenshotId: id, visionPending: true, phash }
     });
-    // async vision write-back
+    // Local OCR hook (Windows.Media.Ocr / tesseract) — best-effort; then vision
     enqueueVision(cfg, id, file);
     status.ok('screenshots', '已截屏');
     return { id, file };
@@ -153,6 +162,7 @@ function start(opts = {}) {
   getConfig = opts.getConfig || getConfig;
   desktopCapturer = opts.desktopCapturer;
   BrowserWindow = opts.BrowserWindow;
+  bus = opts.bus || null;
   stop();
   const tick = () => {
     const cfg = getConfig();

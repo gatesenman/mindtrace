@@ -18,6 +18,9 @@ const { chatCompletion } = require('../ai/client');
 const { exportVault } = require('../export/markdown');
 const apiServer = require('../api/server');
 const collectorStatus = require('./collectorStatus');
+const workerHost = require('../worker/host');
+const wikiEngine = require('../wiki/engine');
+const mcpServer = require('../mcp/server');
 const { installProcessHandlers, appendLog, getLogPath, initLogger } = require('./logger');
 
 let mainWindow = null;
@@ -80,7 +83,20 @@ async function runScreenshotTour() {
   await mainWindow.webContents.executeJavaScript(`window.mindtrace && (async()=>{const s=document.querySelector('[data-view=dashboard]'); s&&s.click(); await new Promise(r=>setTimeout(r,400));})()`);
   await wait(800);
   await capture('05-dashboard.png');
-  for (const [view, file] of [['timeline','06-timeline.png'],['knowledge','07-knowledge.png'],['chat','08-chat.png'],['collect','09-collect.png'],['ai','10-settings.png']]) {
+  // Timeline with zoom levels
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=timeline]')?.click()`);
+  await wait(700);
+  await capture('06-timeline.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('#tl-zoom [data-zoom=hour]')?.click()`);
+  await wait(400); await capture('06a-timeline-hour.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('#tl-zoom [data-zoom=week]')?.click()`);
+  await wait(400); await capture('06b-timeline-week.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('#tl-zoom [data-zoom=month]')?.click()`);
+  await wait(400); await capture('06c-timeline-month.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('#tl-zoom [data-zoom=day]')?.click()`);
+  await wait(300);
+
+  for (const [view, file] of [['knowledge','07-knowledge.png'],['wiki','07c-wiki.png'],['chat','08-chat.png'],['collect','09-collect.png'],['ai','10-settings.png']]) {
     await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view="${view}"]')?.click()`);
     await wait(700);
     if (view === 'knowledge') {
@@ -229,38 +245,25 @@ function broadcastStatus() {
 }
 
 function startCollectors() {
-  const opts = { getConfig };
-  const cols = config.collectors || {};
-  const safe = (name, fn) => {
-    try { fn(); }
-    catch (e) {
-      collectorStatus.err(name, e);
-      appendLog('ERROR', `start:${name}`, e);
-    }
-  };
-  if (!cols.window) collectorStatus.disabled('window');
-  else safe('window', () => windowTracker.start({ ...opts, intervalMs: 2000, onChange: () => {} }));
-  if (!cols.browser) collectorStatus.disabled('browser');
-  else safe('browser', () => browserHistory.start({ ...opts, intervalMs: 60000 }));
-  if (!cols.clipboard) collectorStatus.disabled('clipboard');
-  else safe('clipboard', () => clipboardCollector.start({ ...opts, clipboard, intervalMs: 1500 }));
-  if (!cols.documents) collectorStatus.disabled('documents');
-  else safe('documents', () => documents.start(opts));
-  if (!cols.screenshots) collectorStatus.disabled('screenshots');
-  else safe('screenshots', () => screenshots.start({ ...opts, desktopCapturer, BrowserWindow }));
+  const opts = { getConfig, clipboard, desktopCapturer, BrowserWindow };
   try {
-    if (config.api?.enabled) apiServer.start({ getConfig });
+    workerHost.start(opts);
+  } catch (e) {
+    appendLog('ERROR', 'workerHost.start', e);
+  }
+  try {
+    if (config.api?.enabled) {
+      apiServer.start({ getConfig });
+      mcpServer.start({ getConfig });
+    }
   } catch (e) { appendLog('ERROR', 'start:api', e); }
   scheduleSummarize();
 }
 
 function stopCollectors() {
-  windowTracker.stop();
-  browserHistory.stop();
-  clipboardCollector.stop();
-  documents.stop();
-  screenshots.stop();
+  try { workerHost.stop(); } catch (_) {}
   apiServer.stop();
+  try { mcpServer.stop(); } catch (_) {}
   if (summarizeTimer) clearInterval(summarizeTimer);
 }
 
@@ -273,14 +276,27 @@ function scheduleSummarize() {
 }
 
 
+function registerNoteHotkey() {
+  const accel = config.noteHotkey || 'CommandOrControl+Shift+N';
+  try {
+    globalShortcut.register(accel, () => {
+      mainWindow?.webContents.send('quick-note-open');
+      mainWindow?.show();
+      mainWindow?.focus();
+    });
+  } catch (e) { console.error('note hotkey', e.message); }
+}
+
 function registerPauseHotkey() {
   try { globalShortcut.unregisterAll(); } catch (_) {}
+  // note hotkey re-bound below after pause
   const accel = config.privacy?.pauseHotkey || 'CommandOrControl+Shift+M';
   try {
     globalShortcut.register(accel, () => {
       setPaused(!config.privacy.paused);
       mainWindow?.webContents.send('status', { paused: config.privacy.paused, toast: config.privacy.paused ? '已暂停采集' : '已恢复采集' });
     });
+    registerNoteHotkey();
   } catch (e) {
     console.error('hotkey', e.message);
   }
@@ -515,6 +531,41 @@ function registerIpc() {
   ipcMain.handle('capture-now', async () => {
     const r = await screenshots.capture(true);
     return { ok: !!r, ...(r || {}) };
+  });
+
+  
+  ipcMain.handle('get-rollups', (_e, opts = {}) => store.getRollups(opts.level || 'day', opts.from, opts.to));
+  ipcMain.handle('get-wiki', (_e, kind) => store.listWiki(kind));
+  ipcMain.handle('get-memories', (_e, kind) => store.listMemories(kind));
+  ipcMain.handle('search-fts', (_e, q) => store.searchFts(q, 50));
+  ipcMain.handle('get-budget', () => workerHost.getBudget());
+  ipcMain.handle('add-quick-note', (_e, payload) => {
+    const bus = workerHost.getBus();
+    if (bus) {
+      const notes = require('../collectors/notes');
+      // ensure bus on notes module
+      notes.start({ getConfig, bus });
+      notes.addQuickNote(payload || {});
+      return { ok: true };
+    }
+    // fallback direct store
+    const id = store.insertActivity({
+      type: 'note', started_at: Date.now(), app_name: '速记',
+      window_title: (payload && payload.title) || '速记',
+      content: (payload && payload.content) || '',
+      meta: { quick: true, tags: (payload && payload.tags) || [] }
+    });
+    return { ok: true, id };
+  });
+  ipcMain.handle('build-rollup', async (_e, opts = {}) => {
+    try {
+      const level = opts.level || 'day';
+      if (level === 'hour') await wikiEngine.buildHourRollup(config, opts.key || wikiEngine.hourKey(Date.now()));
+      else if (level === 'week') await wikiEngine.buildWeekRollup(config, opts.key || wikiEngine.weekKey(Date.now()));
+      else if (level === 'month') await wikiEngine.buildMonthRollup(config, opts.key || wikiEngine.monthKey(Date.now()));
+      else await wikiEngine.buildDayRollup(config, opts.key || wikiEngine.dayKey(Date.now()));
+      return { ok: true };
+    } catch (e) { return { ok: false, error: e.message }; }
   });
 
   ipcMain.handle('get-presets', () => PRESETS);

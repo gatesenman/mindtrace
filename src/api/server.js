@@ -56,7 +56,8 @@ function start(opts = {}) {
     const url = new URL(req.url, `http://127.0.0.1:${port}`);
     try {
       if (req.method === 'GET' && url.pathname === '/health') {
-        return json(res, 200, { ok: true, name: 'MindTrace', version: '1.0.0' });
+        const pkg = require('../../package.json');
+        return json(res, 200, { ok: true, name: 'MindTrace', version: pkg.version || '2.0.0' });
       }
       if (req.method === 'GET' && url.pathname === '/stats/today') {
         return json(res, 200, store.getTodayStats());

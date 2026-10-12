@@ -16,7 +16,20 @@ const DEFAULTS = {
     browser: false,
     documents: false,
     clipboard: false,
-    screenshots: false
+    screenshots: false,
+    notes: false,
+    ide: false,
+    downloads: false,
+    files: false,
+    uia: false
+  },
+  noteFolders: [],
+  downloadFolder: '',
+  noteHotkey: 'CommandOrControl+Shift+N',
+  wiki: {
+    autoHourly: true,
+    autoDaily: true,
+    memoryMinConfidence: 0.75
   },
   privacy: {
     paused: false,
