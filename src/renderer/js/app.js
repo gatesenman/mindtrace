@@ -46,6 +46,56 @@ function typeLabel(t) {
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+/** Lightweight markdown → HTML (headings, lists, bold/italic, paragraphs). */
+function renderMarkdown(md) {
+  const lines = String(md || '').replace(/\r\n/g, '\n').split('\n');
+  const out = [];
+  let inUl = false, inOl = false;
+  const closeLists = () => {
+    if (inUl) { out.push('</ul>'); inUl = false; }
+    if (inOl) { out.push('</ol>'); inOl = false; }
+  };
+  const inline = (s) => escapeHtml(s)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (!line.trim()) { closeLists(); continue; }
+    const h = /^(#{1,3})\s+(.*)$/.exec(line);
+    if (h) {
+      closeLists();
+      const level = h[1].length;
+      out.push(`<h${level}>${inline(h[2])}</h${level}>`);
+      continue;
+    }
+    const ul = /^[-*+]\s+(.*)$/.exec(line);
+    if (ul) {
+      if (inOl) { out.push('</ol>'); inOl = false; }
+      if (!inUl) { out.push('<ul>'); inUl = true; }
+      out.push(`<li>${inline(ul[1])}</li>`);
+      continue;
+    }
+    const ol = /^\d+\.\s+(.*)$/.exec(line);
+    if (ol) {
+      if (inUl) { out.push('</ul>'); inUl = false; }
+      if (!inOl) { out.push('<ol>'); inOl = true; }
+      out.push(`<li>${inline(ol[1])}</li>`);
+      continue;
+    }
+    closeLists();
+    out.push(`<p>${inline(line)}</p>`);
+  }
+  closeLists();
+  return out.join('\n');
+}
+function setDelta(el, delta) {
+  if (!el) return;
+  const d = delta || { label: '较昨日 —', dir: 'flat' };
+  el.textContent = d.label || '较昨日 —';
+  el.className = 'delta ' + (d.dir === 'up' ? 'up' : d.dir === 'down' ? 'down' : 'flat');
+}
 function lines(id) { return $(id).value.split(/\n+/).map(s => s.trim()).filter(Boolean); }
 
 function greet() {
@@ -165,36 +215,26 @@ async function loadDashboard() {
   $('stat-browse').textContent = stats.browserCount || 0;
   $('stat-cards').textContent = stats.cardsToday;
 
-  const max = Math.max(1, ...(stats.appBreakdown || []).map(a => a.total_ms || 0));
-  $('app-bars').innerHTML = (stats.appBreakdown || []).slice(0, 6).map(a => {
-    const pct = Math.round((a.total_ms || 0) / max * 100);
-    return `<div class="bar-row"><div>${escapeHtml(a.app_name || '未知')}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><div>${fmtMin(a.total_ms)}</div></div>`;
-  }).join('') || '';
+  setDelta($('stat-time-delta'), stats.deltas?.time);
+  setDelta($('stat-acts-delta'), stats.deltas?.acts);
+  setDelta($('stat-browse-delta'), stats.deltas?.browse);
+  setDelta($('stat-cards-delta'), stats.deltas?.cards);
+
   try {
     if (window.MTCharts) {
-      MTCharts.appsBar($('chart-apps'), stats.appBreakdown || []);
-      const hourly = new Array(24).fill(0);
-      (stats.hourly || []).forEach((v, i) => { if (i < 24) hourly[i] = v; });
-      // derive soft hourly from total if missing
-      if (!(stats.hourly || []).length && stats.activityCount) {
-        for (let i = 8; i <= 22; i++) hourly[i] = Math.max(0, Math.round((stats.activityCount / 12) * (0.6 + Math.random() * 0.8)));
-      }
-      MTCharts.heatmap($('chart-hourly'), hourly);
-      const week = stats.weekTrend || [Math.max(1, Math.round((stats.activityCount||0)*0.5)), Math.max(1, Math.round((stats.activityCount||0)*0.7)), Math.max(1, Math.round((stats.activityCount||0)*0.6)), Math.max(1, Math.round((stats.activityCount||0)*0.9)), Math.max(1, Math.round((stats.activityCount||0)*0.8)), Math.max(1, stats.activityCount||1), Math.max(1, Math.round((stats.activityCount||0)*1.1))];
+      MTCharts.appsRank($('chart-apps'), stats.appBreakdown || []);
+      if ($('app-bars')) $('app-bars').innerHTML = '';
+      MTCharts.heatmap($('chart-hourly'), stats.hourly || new Array(24).fill(0));
+      const week = (stats.weekTrend && stats.weekTrend.length) ? stats.weekTrend : [0, 0, 0, 0, 0, 0, stats.activityCount || 0];
       MTCharts.weekTrend($('chart-week'), week);
-      const sparkBase = week.map(v => Math.max(1, v));
-      MTCharts.sparkline($('spark-time'), sparkBase, getComputedStyle(document.body).getPropertyValue('--brand').trim());
-      MTCharts.sparkline($('spark-acts'), sparkBase.map(v => v * 1.2));
-      MTCharts.sparkline($('spark-browse'), sparkBase.map(v => v * 0.7));
-      MTCharts.sparkline($('spark-cards'), sparkBase.map(v => Math.max(1, v * 0.4)));
+      const sparkBase = week.map(v => Math.max(0, Number(v) || 0));
+      const brand = getComputedStyle(document.body).getPropertyValue('--brand').trim();
+      MTCharts.sparkline($('spark-time'), sparkBase, brand);
+      MTCharts.sparkline($('spark-acts'), sparkBase, brand);
+      MTCharts.sparkline($('spark-browse'), sparkBase.map((v, i) => Math.max(0, Math.round(v * 0.45))), brand);
+      MTCharts.sparkline($('spark-cards'), sparkBase.map((v, i) => Math.max(0, Math.round(v * 0.25) + (i === 6 ? (stats.cardsToday || 0) : 0))), brand);
     }
   } catch (e) { console.warn('charts', e); }
-  if ($('stat-time-delta')) $('stat-time-delta').textContent = stats.activityCount ? '今日活跃' : '等待采集';
-  if ($('stat-acts-delta')) $('stat-acts-delta').textContent = `${stats.activityCount || 0} 条事件`;
-  if ($('stat-cards-delta')) {
-    $('stat-cards-delta').textContent = (stats.cardsToday || 0) > 0 ? `+${stats.cardsToday} 今日` : '待沉淀';
-    $('stat-cards-delta').className = 'delta ' + ((stats.cardsToday || 0) > 0 ? 'up' : 'flat');
-  }
 
   const journals = await window.mindtrace.getJournals();
   const today = new Date().toISOString().slice(0, 10);
@@ -202,21 +242,29 @@ async function loadDashboard() {
   if (j) {
     let highlights = [];
     try { highlights = JSON.parse(j.highlights || '[]'); } catch {}
-    $('journal-box').classList.remove('muted');
-    $('journal-box').textContent = `${j.title || ''}\n\n${j.content || ''}\n\n${highlights.length ? '要点：\n- ' + highlights.join('\n- ') : ''}`;
+    const demo = /示例/.test(j.title || '') || /【示例数据】/.test(j.content || '');
+    const md = [
+      j.title ? `## ${j.title}` : '',
+      j.content || '',
+      highlights.length ? `### 要点\n\n${highlights.map(h => `- ${h}`).join('\n')}` : ''
+    ].filter(Boolean).join('\n\n');
+    $('journal-box').className = 'journal-box md';
+    $('journal-box').innerHTML = (demo ? '<span class="demo-tag">示例</span>' : '') + renderMarkdown(md);
   } else {
     $('journal-box').className = 'journal-box muted';
     $('journal-box').textContent = '还没有摘要。开启采集一段时间后，点击上方按钮生成。';
   }
 
-  const recent = await window.mindtrace.getTimeline({ from: Date.now() - 86400000, limit: 12 });
-  $('recent-list').innerHTML = recent.map(a => `
-    <div class="list-item">
-      <div>${fmtTime(a.started_at)}</div>
-      <div class="tag">${typeLabel(a.type)}</div>
-      <div class="title"><b>${escapeHtml(a.app_name || '')}</b> ${escapeHtml(a.window_title || a.url || a.file_path || '')}</div>
-    </div>
-  `).join('') || emptyState('暂无最近活动', '完成引导并开启采集，或打开体验示例数据。');
+  const recent = await window.mindtrace.getTimeline({ from: Date.now() - 86400000, limit: 14 });
+  $('recent-list').innerHTML = recent.map(a => {
+    const demo = isDemoMeta(a.meta);
+    return `<div class="recent-row">
+      <div class="t">${fmtTime(a.started_at)}</div>
+      <div class="cat-dot" data-type="${escapeHtml(a.type || '')}"></div>
+      <div class="cat-label">${typeLabel(a.type)}</div>
+      <div class="recent-title"><b>${escapeHtml(a.app_name || '')}</b> ${escapeHtml(a.window_title || a.url || a.file_path || '')}${demo ? '<span class="demo-tag">示例</span>' : ''}</div>
+    </div>`;
+  }).join('') || emptyState('暂无最近活动', '完成引导并开启采集，或打开体验示例数据。');
 }
 
 function isDemoMeta(meta) {
@@ -315,7 +363,7 @@ async function loadJournalsTab(focusId) {
       <div>${j.period_key}${demo ? '<span class="demo-tag">示例</span>' : ''}</div>
       <div><b>${escapeHtml(j.title || '')}</b><div class="tiny">${escapeHtml((j.content || '').slice(0, 140))}</div></div>
     </div>`;
-  }).join('') || '<div class="empty">暂无日刊。配置 AI 后可生成本日摘要。</div>';
+  }).join('') || emptyState('暂无日刊', '配置 AI 后可生成本日摘要，或开启体验示例数据。');
   document.querySelectorAll('[data-open-journal]').forEach(el => {
     el.onclick = async () => {
       const id = el.getAttribute('data-open-journal');
@@ -339,7 +387,7 @@ async function loadTopicsTab(focusId) {
       <p>${escapeHtml(tp.summary || '')}</p>
       <div class="tiny">关联卡片 ${(() => { try { return JSON.parse(tp.card_ids||'[]').length; } catch { return 0; } })()} · 活动 ${tp.activity_count || 0}</div>
     </div>`;
-  }).join('') || '<div class="empty">暂无主题。开启示例数据或等待 AI 聚类。</div>';
+  }).join('') || emptyState('暂无主题', '开启体验示例数据，或等待 AI 聚类。');
   document.querySelectorAll('#topics-grid .kcard').forEach(card => {
     card.onclick = () => {
       const id = card.dataset.id;
@@ -363,7 +411,7 @@ async function loadCardsTab(focusId) {
       <h4>${escapeHtml(c.title)}</h4>
       <p>${escapeHtml(c.summary || '')}</p>
     </div>`;
-  }).join('') || '<div class="empty">暂无知识卡片。采集一段时间后，AI 会自动提炼；或开启体验示例数据。</div>';
+  }).join('') || emptyState('暂无知识卡片', '采集一段时间后由 AI 提炼，或开启体验示例数据。');
   document.querySelectorAll('#cards-grid .kcard').forEach(card => {
     card.onclick = async () => {
       const id = card.dataset.id;
@@ -413,12 +461,12 @@ async function loadWiki() {
     <div class="list-item" style="grid-template-columns: 72px 1fr; cursor:pointer" data-slug="${escapeHtml(p.slug)}">
       <div class="tag">${escapeHtml(p.kind)}</div>
       <div><b>${escapeHtml(p.title)}</b><div class="muted tiny">${escapeHtml((p.body_md||'').slice(0,80))}</div></div>
-    </div>`).join('') || '<div class="empty">暂无 Wiki 页。生成日卷后将自动出现时间卷与实体。</div>';
+    </div>`).join('') || emptyState('暂无 Wiki 页', '生成日卷后将出现时间卷与实体。');
   $('memory-list').innerHTML = mems.map(m => `
     <div class="list-item" style="grid-template-columns: 72px 1fr">
       <div class="tag">${escapeHtml(m.kind)}</div>
       <div>${escapeHtml(m.text)} <span class="tiny muted">· ${(m.confidence*100|0)}%</span></div>
-    </div>`).join('') || '<div class="empty">暂无记忆条目</div>';
+    </div>`).join('') || emptyState('暂无记忆条目', '生成日卷或摘要后将抽取记忆。');
   document.querySelectorAll('#wiki-list .list-item').forEach(el => {
     el.onclick = () => {
       const page = pages.find(x => x.slug === el.dataset.slug);
@@ -737,20 +785,6 @@ function bind() {
     closeQn(); toast('速记已保存');
   });
   window.mindtrace.onQuickNote?.(() => { showView('dashboard'); openQn(); });
-  $('global-search')?.addEventListener('keydown', async (e) => {
-    if (e.key !== 'Enter') return;
-    const q = $('global-search').value.trim();
-    if (!q) return;
-    const hits = await window.mindtrace.searchFts(q);
-    showView('timeline');
-    timelineZoom = 'day';
-    document.querySelectorAll('#tl-zoom .chip').forEach(c => c.classList.toggle('active', c.dataset.zoom === 'day'));
-    $('tl-q').value = q;
-    $('timeline-list').innerHTML = hits.map(h => `
-      <div class="tl-item"><div class="time"><div class="tag">${escapeHtml(h.type||'')}</div></div>
-      <div><div><b>${escapeHtml(h.app||'')}</b> ${escapeHtml(h.title||'')}</div>
-      <div class="meta">${escapeHtml((h.content||'').slice(0,120))}</div></div></div>`).join('') || '<div class="empty">无全文结果</div>';
-  });
 
 
   // Enterprise chrome: sidebar, command palette, window controls
@@ -761,23 +795,39 @@ function bind() {
   $('win-max')?.addEventListener('click', () => window.mindtrace.windowMaximize?.());
   $('win-close')?.addEventListener('click', () => window.mindtrace.windowClose?.());
 
-  const cmdItems = () => ([
-    { label: '今日总览', hint: '页面', run: () => showView('dashboard') },
-    { label: '时间线', hint: '页面', run: () => showView('timeline') },
-    { label: '知识库', hint: '页面', run: () => showView('knowledge') },
-    { label: 'Wiki', hint: '页面', run: () => showView('wiki') },
-    { label: '智能问答', hint: '页面', run: () => showView('chat') },
-    { label: '采集中心', hint: '页面', run: () => showView('collect') },
-    { label: '设置', hint: '页面', run: () => showView('ai') },
-    { label: '生成本日摘要', hint: '操作', run: () => $('btn-summarize')?.click() },
-    { label: '导出知识库', hint: '操作', run: () => $('btn-export')?.click() },
-    { label: '打开速记', hint: '操作', run: () => { $('quick-note-modal')?.classList.remove('hidden'); $('qn-body')?.focus(); } },
-    { label: '切换深色 / 浅色主题', hint: '外观', run: () => $('btn-theme')?.click() },
-    { label: '暂停 / 恢复采集', hint: '采集', run: () => $('btn-pause')?.click() }
-  ]);
+  const runFts = async (q) => {
+    const hits = await window.mindtrace.searchFts(q);
+    showView('timeline');
+    timelineZoom = 'day';
+    document.querySelectorAll('#tl-zoom .chip').forEach(c => c.classList.toggle('active', c.dataset.zoom === 'day'));
+    if ($('tl-q')) $('tl-q').value = q;
+    $('timeline-list').innerHTML = hits.map(h => `
+      <div class="tl-item" data-type="${escapeHtml(h.type||'')}"><div class="time"><div class="tag">${escapeHtml(typeLabel(h.type)||'')}</div></div>
+      <div class="tl-card"><div><b>${escapeHtml(h.app||'')}</b> ${escapeHtml(h.title||'')}</div>
+      <div class="meta">${escapeHtml((h.content||'').slice(0,120))}</div></div></div>`).join('') || emptyState('无全文结果', '换个关键词试试');
+  };
+  const cmdItems = (q) => {
+    const base = [
+      { label: '今日总览', hint: '页面', run: () => showView('dashboard') },
+      { label: '时间线', hint: '页面', run: () => showView('timeline') },
+      { label: '知识库', hint: '页面', run: () => showView('knowledge') },
+      { label: 'Wiki', hint: '页面', run: () => showView('wiki') },
+      { label: '智能问答', hint: '页面', run: () => showView('chat') },
+      { label: '采集中心', hint: '页面', run: () => showView('collect') },
+      { label: '设置', hint: '页面', run: () => showView('ai') },
+      { label: '生成本日摘要', hint: '操作', run: () => $('btn-summarize')?.click() },
+      { label: '导出知识库', hint: '操作', run: () => $('btn-export')?.click() },
+      { label: '打开速记', hint: '操作', run: () => { $('quick-note-modal')?.classList.remove('hidden'); $('qn-body')?.focus(); } },
+      { label: '切换深色 / 浅色主题', hint: '外观', run: () => $('btn-theme')?.click() },
+      { label: '暂停 / 恢复采集', hint: '采集', run: () => $('btn-pause')?.click() }
+    ];
+    const qq = (q || '').trim();
+    if (qq) base.unshift({ label: `搜索「${qq}」`, hint: '全文', run: () => runFts(qq) });
+    return base;
+  };
   function renderCmd(q) {
     const qq = (q || '').trim().toLowerCase();
-    const items = cmdItems().filter(it => !qq || it.label.toLowerCase().includes(qq) || it.hint.includes(qq));
+    const items = cmdItems(q).filter(it => !qq || it.label.toLowerCase().includes(qq) || it.hint.includes(qq) || it.hint === '全文');
     $('cmd-results').innerHTML = items.map((it, i) =>
       `<button type="button" class="cmd-item${i===0?' active':''}" data-idx="${i}"><span>${escapeHtml(it.label)}</span><span class="hint">${escapeHtml(it.hint)}</span></button>`
     ).join('') || '<div class="empty" style="padding:20px">无匹配命令</div>';

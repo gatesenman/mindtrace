@@ -395,34 +395,100 @@ function getTodayStats() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const from = start.getTime();
-  const rawWindows = all(
-    `SELECT app_name, process_name, window_title, duration_ms FROM activities WHERE type='window' AND started_at>=?`,
+  const yStart = new Date(start); yStart.setDate(yStart.getDate() - 1);
+  const yFrom = yStart.getTime();
+  const yTo = from;
+
+  const raw = all(
+    `SELECT type, app_name, process_name, window_title, duration_ms, started_at FROM activities WHERE started_at>=?`,
     [from]
   );
   const byApp = new Map();
   let focusMs = 0;
-  for (const row of rawWindows) {
+  const hourly = new Array(24).fill(0);
+  let activityCount = 0;
+  let browserCount = 0;
+  for (const row of raw) {
     if (isSelfApp({ app: row.app_name, process: row.process_name, title: row.window_title })) continue;
+    activityCount += 1;
+    if (row.type === 'browser') browserCount += 1;
     const name = friendlyAppName(row.app_name, row.process_name, row.window_title);
-    const cur = byApp.get(name) || { app_name: name, total_ms: 0, cnt: 0 };
-    cur.total_ms += row.duration_ms || 0;
-    cur.cnt += 1;
-    byApp.set(name, cur);
-    focusMs += row.duration_ms || 0;
+    const dur = row.duration_ms || 0;
+    // Rank apps by duration across window/browser/document/ide etc.
+    if (dur > 0 || ['window', 'browser', 'document', 'ide'].includes(row.type)) {
+      const cur = byApp.get(name) || { app_name: name, total_ms: 0, cnt: 0 };
+      cur.total_ms += dur || (row.type === 'browser' ? 3 * 60000 : 0);
+      cur.cnt += 1;
+      byApp.set(name, cur);
+      if (row.type === 'window' || row.type === 'ide') focusMs += dur;
+      else if (dur) focusMs += dur;
+    }
+    try {
+      const h = new Date(row.started_at).getHours();
+      if (h >= 0 && h < 24) hourly[h] += 1;
+    } catch (_) {}
+  }
+  // If focus still 0 but we have app totals, use sum of ranked apps
+  if (!focusMs) {
+    focusMs = [...byApp.values()].reduce((s, a) => s + (a.total_ms || 0), 0);
   }
   const acts = [...byApp.values()].sort((a, b) => b.total_ms - a.total_ms);
-  const allToday = all(`SELECT type, app_name, process_name, window_title FROM activities WHERE started_at>=?`, [from]);
-  const activityCount = allToday.filter(a => !isSelfApp({ app: a.app_name, process: a.process_name, title: a.window_title })).length;
   const cards = get(`SELECT COUNT(*) as c FROM knowledge_cards WHERE created_at>=?`, [from]);
   const shots = get(`SELECT COUNT(*) as c FROM screenshots WHERE taken_at>=?`, [from]);
-  const browser = get(`SELECT COUNT(*) as c FROM activities WHERE type='browser' AND started_at>=?`, [from]);
+  const cardsToday = cards?.c || 0;
+
+  // Yesterday comparisons
+  const yRaw = all(
+    `SELECT type, app_name, process_name, window_title, duration_ms FROM activities WHERE started_at>=? AND started_at<?`,
+    [yFrom, yTo]
+  );
+  let yFocus = 0, yActs = 0, yBrowse = 0;
+  for (const row of yRaw) {
+    if (isSelfApp({ app: row.app_name, process: row.process_name, title: row.window_title })) continue;
+    yActs += 1;
+    if (row.type === 'browser') yBrowse += 1;
+    yFocus += row.duration_ms || 0;
+  }
+  const yCards = get(`SELECT COUNT(*) as c FROM knowledge_cards WHERE created_at>=? AND created_at<?`, [yFrom, yTo]);
+  const yCardsN = yCards?.c || 0;
+
+  // Week trend: activity counts for last 7 calendar days (oldest → today)
+  const weekTrend = [];
+  for (let d = 6; d >= 0; d--) {
+    const day = new Date(start);
+    day.setDate(day.getDate() - d);
+    const a = day.getTime();
+    const bDate = new Date(day); bDate.setDate(bDate.getDate() + 1);
+    const b = bDate.getTime();
+    const rows = all(`SELECT app_name, process_name, window_title FROM activities WHERE started_at>=? AND started_at<?`, [a, b]);
+    weekTrend.push(rows.filter(r => !isSelfApp({ app: r.app_name, process: r.process_name, title: r.window_title })).length);
+  }
+
+  function pctDelta(today, yesterday) {
+    if (!yesterday && !today) return { pct: 0, label: '较昨日 —', dir: 'flat' };
+    if (!yesterday) return { pct: 100, label: '较昨日 +100%', dir: 'up' };
+    const pct = Math.round(((today - yesterday) / yesterday) * 100);
+    if (pct > 0) return { pct, label: `较昨日 +${pct}%`, dir: 'up' };
+    if (pct < 0) return { pct, label: `较昨日 ${pct}%`, dir: 'down' };
+    return { pct: 0, label: '较昨日 持平', dir: 'flat' };
+  }
+
   return {
     appBreakdown: acts,
     activityCount,
     totalMs: focusMs,
-    cardsToday: cards?.c || 0,
+    cardsToday,
     screenshotsToday: shots?.c || 0,
-    browserCount: browser?.c || 0
+    browserCount,
+    hourly,
+    weekTrend,
+    deltas: {
+      time: pctDelta(focusMs, yFocus),
+      acts: pctDelta(activityCount, yActs),
+      browse: pctDelta(browserCount, yBrowse),
+      cards: pctDelta(cardsToday, yCardsN)
+    },
+    yesterday: { totalMs: yFocus, activityCount: yActs, browserCount: yBrowse, cards: yCardsN }
   };
 }
 

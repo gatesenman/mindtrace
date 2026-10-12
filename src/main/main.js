@@ -313,58 +313,135 @@ function applyBoot() {
 function seedDemoData() {
   store.clearDemoData();
   const now = Date.now();
-  const apps = [
-    ['Google Chrome', '阅读：Electron 最佳实践', 'browser'],
-    ['微信', '与张三的聊天', 'window'],
-    ['Word', '季度总结.docx', 'document'],
-    ['VS Code', 'mindtrace - main.js', 'window'],
-    ['Microsoft Edge', 'DeepSeek API 文档', 'browser']
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const base = dayStart.getTime();
+
+  // Richer catalog: 8 apps, realistic titles across the day
+  const catalog = [
+    { app: '微信', type: 'window', titles: ['与张三的项目同步', '产品群：知迹 2.1 评审', '文件传输助手'], dur: [8, 12, 6] },
+    { app: 'Google Chrome', type: 'browser', titles: ['Electron Security Best Practices', 'FTS5 全文检索手册', 'uPlot 文档', 'OpenAI Compatible API'], urls: ['https://www.electronjs.org/docs/latest/tutorial/security', 'https://www.sqlite.org/fts5.html', 'https://github.com/leeoniya/uPlot', 'https://platform.openai.com/docs'], dur: [15, 10, 8, 12] },
+    { app: 'Microsoft Edge', type: 'browser', titles: ['DeepSeek API 文档', '飞书开放平台', 'MDN Web Docs'], urls: ['https://api-docs.deepseek.com', 'https://open.feishu.cn', 'https://developer.mozilla.org'], dur: [14, 9, 7] },
+    { app: 'VS Code', type: 'window', titles: ['mindtrace — main.js', 'mindtrace — store.js', 'mindtrace — app.css', 'Git: commit message'], dur: [18, 16, 12, 5] },
+    { app: 'Cursor', type: 'window', titles: ['Agent: UI polish', 'Composer — charts.js', 'Diff: seedDemoData'], dur: [20, 15, 10] },
+    { app: 'Word', type: 'document', titles: ['季度总结.docx', '知迹产品说明.docx'], paths: ['C:/Users/演示用户/Documents/季度总结.docx', 'C:/Users/演示用户/Documents/知迹产品说明.docx'], dur: [12, 10] },
+    { app: '飞书', type: 'window', titles: ['周会纪要', '设计评审：企业级界面', '与李四的会话'], dur: [11, 9, 7] },
+    { app: 'PDF Reader', type: 'document', titles: ['系统设计白皮书.pdf', '隐私合规清单.pdf'], paths: ['C:/Users/演示用户/Documents/系统设计白皮书.pdf', 'C:/Users/演示用户/Documents/隐私合规清单.pdf'], dur: [13, 8] }
   ];
-  for (let i = 0; i < 20; i++) {
-    const a = apps[i % apps.length];
-    const start = now - (20 - i) * 12 * 60000;
-    store.insertActivity({
-      type: a[2] === 'browser' ? 'browser' : a[2] === 'document' ? 'document' : 'window',
+
+  // Spread ~60 events from 08:30 to evening
+  let cursor = base + (8 * 60 + 30) * 60000;
+  let n = 0;
+  const inserted = [];
+  while (n < 60) {
+    const item = catalog[n % catalog.length];
+    const ti = Math.floor(n / catalog.length) % item.titles.length;
+    const title = item.titles[ti];
+    const durMin = item.dur[ti % item.dur.length];
+    const start = cursor;
+    const duration_ms = durMin * 60000;
+    const row = {
+      type: item.type,
       started_at: start,
-      ended_at: start + 10 * 60000,
-      duration_ms: 10 * 60000,
-      app_name: a[0],
-      process_name: a[0],
-      window_title: a[1],
-      url: a[2] === 'browser' ? 'https://example.com/demo/' + i : null,
-      file_path: a[2] === 'document' ? 'C:/Users/演示用户/Documents/季度总结.docx' : null,
-      content: a[2] === 'document' ? '本季度重点推进知识管理系统建设…' : null,
+      ended_at: start + duration_ms,
+      duration_ms,
+      app_name: item.app,
+      process_name: item.app,
+      window_title: title + (item.type !== 'window' ? '' : ''),
+      url: item.type === 'browser' ? (item.urls && item.urls[ti % item.urls.length]) : null,
+      file_path: item.type === 'document' ? (item.paths && item.paths[ti % item.paths.length]) : null,
+      content: item.type === 'document' ? '【示例】文档摘录：本季度重点推进知识管理系统与企业级体验…' : (item.type === 'browser' ? null : '【示例】'),
+      meta: { isDemo: true, label: '示例' }
+    };
+    store.insertActivity(row);
+    inserted.push(row);
+    n += 1;
+    // advance with small gaps so events span the day
+    cursor += duration_ms + (2 + (n % 5)) * 60000;
+    if (cursor > base + 22 * 3600000) cursor = base + (9 * 60) * 60000 + (n * 7 * 60000);
+  }
+
+  // Yesterday baseline (thinner) so KPI deltas are meaningful
+  const yStart = base - 86400000;
+  for (let i = 0; i < 28; i++) {
+    const item = catalog[i % catalog.length];
+    const start = yStart + (9 * 60 + i * 18) * 60000;
+    store.insertActivity({
+      type: item.type === 'browser' ? 'browser' : item.type === 'document' ? 'document' : 'window',
+      started_at: start,
+      ended_at: start + 8 * 60000,
+      duration_ms: 8 * 60000,
+      app_name: item.app,
+      process_name: item.app,
+      window_title: '【昨日】' + item.titles[0],
+      url: item.type === 'browser' ? 'https://example.com/demo-y/' + i : null,
       meta: { isDemo: true }
     });
   }
-  const c1 = store.upsertKnowledgeCard({ kind: 'project', title: '【示例】知迹 MindTrace', summary: '个人桌面行为转数字资产的桌面应用', tags: ['产品', 'Electron', '示例'], content: '示例项目卡片：覆盖采集、AI 沉淀与导出。' });
-  const c2 = store.upsertKnowledgeCard({ kind: 'learning', title: '【示例】Electron 安全预加载', summary: '使用 contextBridge 暴露有限 API，关闭 nodeIntegration', tags: ['技术', '示例'] });
-  const c3 = store.upsertKnowledgeCard({ kind: 'person', title: '【示例】张三', summary: '协作沟通对象（示例）', tags: ['人脉', '示例'] });
-  store.upsertKnowledgeCard({ kind: 'todo', title: '【示例】配置 AI API Key', summary: '在设置中填入 DeepSeek / 通义 / Kimi Key', tags: ['待办', '示例'] });
-  store.upsertKnowledgeCard({ kind: 'link', title: '【示例】DeepSeek API 文档', summary: 'https://api-docs.deepseek.com', tags: ['链接', '示例'], links: [{ title: 'DeepSeek', url: 'https://api-docs.deepseek.com' }] });
+
+  const cards = [];
+  const mk = (kind, title, summary, tags, content) => {
+    const id = store.upsertKnowledgeCard({ kind, title, summary, tags: tags.concat(['示例']), content: content || summary });
+    cards.push(id);
+    return id;
+  };
+  const cProject = mk('project', '【示例】知迹 MindTrace 2.1', '企业级桌面知识工作台：采集、Wiki、问答与导出', ['产品', 'Electron']);
+  const cLearn1 = mk('learning', '【示例】Electron 安全预加载', 'contextBridge 暴露有限 API，关闭 nodeIntegration', ['技术']);
+  const cLearn2 = mk('learning', '【示例】SQLite FTS5', '用 FTS5 做活动/笔记全文检索，注意分词与更新策略', ['技术', '数据库']);
+  const cLearn3 = mk('learning', '【示例】感知哈希截屏去重', 'phash 跳过静止帧，控制截屏磁盘与 CPU', ['技术', '性能']);
+  const cPerson1 = mk('person', '【示例】张三', '协作沟通对象 · 项目进度对接', ['人脉']);
+  const cPerson2 = mk('person', '【示例】李四', '设计评审参与者 · 飞书同步', ['人脉']);
+  const cTodo1 = mk('todo', '【示例】配置 AI API Key', '在设置中填入 DeepSeek / 通义 / Kimi Key', ['待办']);
+  const cTodo2 = mk('todo', '【示例】补齐 Windows 真机 OCR 验收', '验证 WinRT OCR 与 UIA 节流表现', ['待办']);
+  const cLink1 = mk('link', '【示例】DeepSeek API 文档', 'https://api-docs.deepseek.com', ['链接'], '官方兼容接口说明');
+  const cLink2 = mk('link', '【示例】飞书开放平台', 'https://open.feishu.cn', ['链接']);
+  const cNote = mk('note', '【示例】企业级界面 Checklist', '标题栏、侧栏、命令面板、KPI、图表、双主题', ['笔记', '设计']);
+  mk('project', '【示例】采集性能预算', '目标平均 CPU <3%、内存 <300MB，Worker 批处理', ['性能']);
+
   store.upsertJournal({
     period: 'daily',
     period_key: new Date().toISOString().slice(0, 10),
-    title: '示例日报：搭建数字资产管道',
-    content: '【示例数据】今天主要在浏览器查阅资料、用文档整理思路，并通过微信沟通。知迹将这些碎片活动汇总为可检索资产。',
-    highlights: ['搭建采集器', '设计知识卡片', '准备 AI 总结']
+    title: '示例日报：企业级体验与知识沉淀',
+    content: [
+      '【示例数据】',
+      '',
+      '## 今日概览',
+      '',
+      '今天围绕 **知迹 2.1** 推进企业级界面与知识沉淀：上午在 Chrome / Edge 查阅 Electron 与 FTS5 资料，中午用飞书同步评审，下午在 VS Code 与 Cursor 落地 UI 与示例数据，傍晚整理 Word / PDF 文档并与张三微信对齐进度。',
+      '',
+      '## 进展',
+      '',
+      '- 完成自定义标题栏、命令面板与双主题打磨',
+      '- 应用时长改为横向排名，避免图表重复',
+      '- 丰富示例数据，便于交付验收与截图',
+      '',
+      '## 风险与下一步',
+      '',
+      '- Windows 真机需验收 OCR / UIA',
+      '- 配置 AI Key 后可自动生成真实日刊'
+    ].join('\n'),
+    highlights: ['企业级界面打磨', '横向应用时长排名', '示例数据加厚', '与张三同步进度']
   });
-  store.upsertTopic({ name: '【示例】桌面知识产品', summary: '围绕知迹产品的设计与实现。示例主题。', card_ids: [c1, c2], activity_count: 12, last_seen: now });
-  store.upsertTopic({ name: '【示例】协作沟通', summary: '与张三等协作相关的讨论与待办。示例主题。', card_ids: [c3], activity_count: 5, last_seen: now });
 
-  // Sample ask-history thread with citations (demo mode empty-state polish)
+  store.upsertTopic({ name: '【示例】桌面知识产品', summary: '围绕知迹产品的设计、实现与发布。示例主题。', card_ids: [cProject, cLearn1, cNote], activity_count: 22, last_seen: now });
+  store.upsertTopic({ name: '【示例】协作沟通', summary: '微信 / 飞书上的评审与进度同步。示例主题。', card_ids: [cPerson1, cPerson2], activity_count: 14, last_seen: now });
+  store.upsertTopic({ name: '【示例】检索与性能', summary: 'FTS5、截屏去重与采集预算。示例主题。', card_ids: [cLearn2, cLearn3], activity_count: 10, last_seen: now });
+  store.upsertTopic({ name: '【示例】文档资产', summary: 'Word / PDF 阅读与产品说明沉淀。示例主题。', card_ids: [cLink1, cLink2], activity_count: 8, last_seen: now });
+
   try { store.run(`DELETE FROM chat_messages`); } catch (_) {}
-  const acts = store.all(`SELECT id, app_name, window_title, started_at FROM activities WHERE meta LIKE '%isDemo%' ORDER BY started_at DESC LIMIT 5`);
+  const acts = store.all(`SELECT id, app_name, window_title, started_at FROM activities WHERE meta LIKE '%isDemo%' AND started_at>=? ORDER BY started_at DESC LIMIT 20`, [base]);
   const wechat = acts.find(a => /微信/.test(a.app_name || '')) || acts[0];
   const vscode = acts.find(a => /VS Code|Code/.test(a.app_name || '')) || acts[1] || acts[0];
+  const feishu = acts.find(a => /飞书/.test(a.app_name || '')) || acts[2] || acts[0];
   store.addChatMessage('user', '今天我和谁讨论过项目进度？');
   store.addChatMessage(
     'assistant',
-    '根据记录，你今天通过微信与「张三」沟通了项目相关事项，并在 VS Code 中继续推进知迹的实现。[C1]\n\n建议把「配置 AI API Key」待办尽快完成，以便自动生成日刊。',
+    '根据示例记录，你今天通过**微信**与「张三」同步了项目进度，并在**飞书**参与设计评审；同时在 VS Code / Cursor 推进知迹 2.1 界面。[E1]\n\n建议优先完成「配置 AI API Key」与「Windows OCR 验收」两条待办。',
     [
       wechat && { key: 'E1', kind: 'activity', id: wechat.id, type: 'window', label: `${wechat.app_name || ''} ${wechat.window_title || ''}`.trim(), started_at: wechat.started_at },
-      { key: 'C1', kind: 'card', id: c3, type: 'person', label: '【示例】张三' },
-      vscode && { key: 'E2', kind: 'activity', id: vscode.id, type: 'window', label: `${vscode.app_name || ''} ${vscode.window_title || ''}`.trim(), started_at: vscode.started_at }
+      { key: 'C1', kind: 'card', id: cPerson1, type: 'person', label: '【示例】张三' },
+      feishu && { key: 'E2', kind: 'activity', id: feishu.id, type: 'window', label: `${feishu.app_name || ''} ${feishu.window_title || ''}`.trim(), started_at: feishu.started_at },
+      vscode && { key: 'E3', kind: 'activity', id: vscode.id, type: 'window', label: `${vscode.app_name || ''} ${vscode.window_title || ''}`.trim(), started_at: vscode.started_at }
     ].filter(Boolean)
   );
 }

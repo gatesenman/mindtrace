@@ -22,6 +22,7 @@ const FRIENDLY = [
   [/^(qq)$/i, 'QQ'],
   [/^(notion)$/i, 'Notion'],
   [/^(figma)$/i, 'Figma'],
+  [/^(acrobat|acrord32|pdf|pdf reader|sumatrapdf|foxit)/i, 'PDF Reader'],
   [/^(spotify)$/i, 'Spotify'],
   [/^(windows.?terminal|wt)$/i, '终端'],
   [/^(powershell|pwsh)$/i, 'PowerShell'],
