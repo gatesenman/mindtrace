@@ -6,7 +6,11 @@ async function chatCompletion(cfg, messages, options = {}) {
   if (!ai.apiKey && !ai.baseUrl.includes('127.0.0.1') && !ai.baseUrl.includes('localhost')) {
     throw new Error('请先配置 API Key');
   }
+  let pro = null;
+  try { pro = require('../pro'); } catch (_) {}
+  if (pro) { pro.assertEndpointAllowed(ai.baseUrl, cfg); pro.assertBudget(cfg); }
   const url = ai.baseUrl.replace(/\/$/, '') + '/chat/completions';
+  const t0 = Date.now();
   const body = {
     model: options.model || ai.model || 'deepseek-chat',
     messages,
@@ -16,19 +20,23 @@ async function chatCompletion(cfg, messages, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (ai.apiKey) headers['Authorization'] = `Bearer ${ai.apiKey}`;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-    signal: options.signal
-  });
+  const meta = { provider: ai.provider, model: body.model, purpose: options.purpose || 'chat', messages };
+  let res;
+  try {
+    res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: options.signal });
+  } catch (e) {
+    pro && pro.recordUsage({ ...meta, latency_ms: Date.now() - t0, ok: false, error: e.message });
+    throw e;
+  }
   if (!res.ok) {
     const t = await res.text();
+    pro && pro.recordUsage({ ...meta, latency_ms: Date.now() - t0, ok: false, error: `HTTP ${res.status}` });
     throw new Error(`AI API ${res.status}: ${t.slice(0, 300)}`);
   }
   const data = await res.json();
   const content = data.choices?.[0]?.message?.content || '';
-  return { content, raw: data };
+  const usage = pro ? pro.recordUsage({ ...meta, content, raw: data, latency_ms: Date.now() - t0 }) : null;
+  return { content, raw: data, usage };
 }
 
 /** OpenAI-compatible vision: image as data URL in user content parts */

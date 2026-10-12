@@ -244,7 +244,16 @@ function get(sql, params = []) {
   return rows[0] || null;
 }
 
+let insertPolicy = null;
+let memoryThreshold = 0.75;
+function setInsertPolicy(fn) { insertPolicy = typeof fn === 'function' ? fn : null; }
+function setMemoryThreshold(v) { if (typeof v === 'number') memoryThreshold = v; }
+
 function insertActivity(row) {
+  if (insertPolicy) {
+    try { row = insertPolicy(row); } catch (_) {}
+    if (!row) return null;
+  }
   const id = row.id || crypto.randomUUID();
   const now = Date.now();
   const content = row.content != null ? redactText(String(row.content)) : null;
@@ -558,7 +567,7 @@ function upsertWikiPage(page) {
 function upsertMemory(mem) {
   const now = Date.now();
   const key = mem.dedupe_key || crypto.createHash('sha1').update(String(mem.text || '').trim().toLowerCase()).digest('hex').slice(0, 16);
-  const existing = get(`SELECT id, confidence FROM memories WHERE dedupe_key=? AND status='active'`, [key]);
+  const existing = get(`SELECT id, confidence FROM memories WHERE dedupe_key=? AND status IN ('active','pending')`, [key]);
   if (existing) {
     run(`UPDATE memories SET text=?, confidence=?, evidence=?, updated_at=? WHERE id=?`, [
       mem.text, Math.max(existing.confidence || 0, mem.confidence || 0.8),
@@ -569,7 +578,7 @@ function upsertMemory(mem) {
   const id = mem.id || crypto.randomUUID();
   run(`INSERT INTO memories (id,kind,text,confidence,evidence,status,dedupe_key,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)`, [
     id, mem.kind || 'fact', mem.text, mem.confidence ?? 0.8,
-    mem.evidence ? JSON.stringify(mem.evidence) : null, mem.status || 'active', key, now, now
+    mem.evidence ? JSON.stringify(mem.evidence) : null, mem.status || ((mem.confidence ?? 0.8) < memoryThreshold ? 'pending' : 'active'), key, now, now
   ]);
   return id;
 }
@@ -648,6 +657,7 @@ function insertActivityBatch(events) {
       content: ev.content || null,
       meta: ev.meta || { source: ev.source }
     });
+    if (!id) continue;
     ids.push(id);
     indexActivityFts({ id, ...ev, window_title: ev.title, app_name: ev.app, file_path: ev.path });
   }
@@ -664,5 +674,5 @@ module.exports = {
   insertActivity, updateActivityEnd, insertScreenshot, updateScreenshotDescription,
   upsertKnowledgeCard, upsertJournal, addChatMessage,
   searchActivities, getTodayStats, getActivityById, getCardById, getJournalById, upsertTopic, clearDemoData,
-  upsertWikiPage, upsertMemory, upsertRollup, searchFts, getRollups, listWiki, listMemories, insertActivityBatch, indexActivityFts
+  setInsertPolicy, setMemoryThreshold, upsertWikiPage, upsertMemory, upsertRollup, searchFts, getRollups, listWiki, listMemories, insertActivityBatch, indexActivityFts
 };
