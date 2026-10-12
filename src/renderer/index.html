@@ -56,6 +56,7 @@
           <button data-view="timeline" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="nav-label">时间线</span></button>
           <button data-view="knowledge" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4v15.5"/><path d="M8 4h12v13H8z"/></svg><span class="nav-label">知识库</span></button>
           <button data-view="wiki" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6"/></svg><span class="nav-label">Wiki</span></button>
+          <button data-view="insights" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg><span class="nav-label">洞察</span></button>
           <button data-view="chat" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg><span class="nav-label">智能问答</span></button>
         </div>
         <div class="nav-section">
@@ -238,12 +239,26 @@
             <div id="wiki-body" class="doc-body muted">选择左侧页面查看。Wiki 以文档排版呈现时间卷与实体页。</div>
           </div>
           <div class="card wiki-aside">
-            <h3>记忆</h3>
+            <div class="card-head" style="margin-bottom:6px"><h3 style="margin:0">记忆</h3><div class="chips" id="mem-tabs"><button class="chip active" data-mstatus="active">生效 <b id="mc-active">0</b></button><button class="chip" data-mstatus="pending">待审 <b id="mc-pending">0</b></button><button class="chip" data-mstatus="rejected">驳回 <b id="mc-rejected">0</b></button></div></div>
             <div id="memory-list" class="list"></div>
             <h3 style="margin-top:16px">反向链接</h3>
             <div id="wiki-backlinks" class="backlinks"><div class="tiny">选择页面后显示关联</div></div>
           </div>
         </div>
+      </section>
+
+      <section id="view-insights" class="view hidden">
+        <div class="grid stats">
+          <div class="card stat"><div class="label">深度工作分</div><div class="value" id="in-score">—</div><div class="delta flat" id="in-score-sub">0–100，越高越专注</div></div>
+          <div class="card stat"><div class="label">深度工作时长</div><div class="value" id="in-deep">—</div><div class="delta flat">≥25 分钟连续会话</div></div>
+          <div class="card stat"><div class="label">上下文切换</div><div class="value" id="in-switch">—</div><div class="delta flat" id="in-switch-sub">次/小时</div></div>
+          <div class="card stat"><div class="label">离开（AFK）</div><div class="value" id="in-afk">—</div><div class="delta flat">空闲 >5 分钟计入</div></div>
+        </div>
+        <div class="grid two">
+          <div class="card"><div class="card-head"><h3>专注会话</h3><span class="tiny" id="in-sess-n"></span></div><div class="table-wrap"><table class="data"><thead><tr><th>时段</th><th>时长</th><th>应用</th></tr></thead><tbody id="in-sessions"></tbody></table></div></div>
+          <div class="card"><div class="card-head"><h3>时间分配</h3><div class="chips"><button class="chip active" data-alloc="apps">应用</button><button class="chip" data-alloc="projects">项目</button></div></div><div id="in-alloc" class="rank-list"></div></div>
+        </div>
+        <div class="card"><div class="card-head"><h3>本周回顾</h3><span class="tiny" id="in-week-sum"></span></div><div class="table-wrap"><table class="data"><thead><tr><th>日期</th><th>活跃</th><th>深度工作</th><th>专注分</th><th>切换</th></tr></thead><tbody id="in-week"></tbody></table></div></div>
       </section>
 
       <section id="view-chat" class="view hidden">
@@ -298,9 +313,63 @@
             <button class="btn ghost" id="btn-open-log" style="margin-top:8px">打开崩溃日志</button>
           </div>
         </div>
+        <div class="grid two">
+          <div class="card">
+            <div class="card-head"><h3>隐私规则</h3><button class="btn sm" id="btn-rule-add">添加规则</button></div>
+            <p class="hint field">按应用或网站设置采集粒度：<b>不采集</b> / <b>仅标题</b>（去除正文与完整 URL）/ <b>完整</b>。规则优先于自动检测。</p>
+            <div class="table-wrap"><table class="data"><thead><tr><th>匹配</th><th>范围</th><th>粒度</th><th></th></tr></thead><tbody id="rules-body"></tbody></table></div>
+            <label class="switch" style="margin-top:10px"><input type="checkbox" id="pr-sensitive" /><span>自动识别敏感窗口（密码管理器、网银、无痕窗口、登录页）</span></label>
+            <button class="btn primary" id="btn-rules-save" style="margin-top:8px">保存规则</button>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>按时间范围清除</h3></div>
+            <p class="hint field">永久删除该时段内的活动与截屏，并写入审计日志。</p>
+            <div class="grid two"><div class="field"><label>开始</label><input type="datetime-local" id="wipe-from" class="input" /></div><div class="field"><label>结束</label><input type="datetime-local" id="wipe-to" class="input" /></div></div>
+            <div class="chips" style="margin-bottom:10px"><button class="chip" data-wipe="15">最近 15 分钟</button><button class="chip" data-wipe="60">最近 1 小时</button><button class="chip" data-wipe="1440">最近 24 小时</button></div>
+            <button class="btn danger" id="btn-wipe">清除该时段数据</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>审计日志</h3><div class="chips" id="audit-chips"><button class="chip active" data-akind="">全部</button><button class="chip" data-akind="capture">采集拦截</button><button class="chip" data-akind="mcp">MCP 调用</button><button class="chip" data-akind="llm">模型</button><button class="chip" data-akind="wipe">清除</button><button class="chip" data-akind="backup">备份</button></div></div>
+          <div class="table-wrap" style="max-height:320px"><table class="data"><thead><tr><th>时间</th><th>类别</th><th>动作</th><th>对象</th><th>详情</th></tr></thead><tbody id="audit-body"></tbody></table></div>
+        </div>
       </section>
 
       <section id="view-ai" class="view hidden">
+        <div class="grid two">
+          <div class="card">
+            <div class="card-head"><h3>模型用量与预算</h3><span class="tiny">本月</span></div>
+            <div class="usage-kpis"><div><div class="label">费用</div><div class="value" id="us-cost">$0</div></div><div><div class="label">Tokens</div><div class="value" id="us-tokens">0</div></div><div><div class="label">调用</div><div class="value" id="us-calls">0</div></div></div>
+            <div class="budget-bar"><span id="us-bar"></span></div><div class="tiny" id="us-cap-text">未设置预算</div>
+            <div class="grid two" style="margin-top:10px"><div class="field"><label>月度预算（USD，0 为不限）</label><input type="number" id="us-budget" class="input" min="0" step="0.5" /></div>
+            <label class="switch" style="align-self:end"><input type="checkbox" id="pr-localonly" /><span>仅本地模式（只允许 127.0.0.1 模型）</span></label></div>
+            <button class="btn" id="btn-usage-save">保存</button>
+            <div class="table-wrap" style="margin-top:10px"><table class="data"><thead><tr><th>模型</th><th>调用</th><th>Tokens</th><th>费用</th><th>平均耗时</th><th>失败</th></tr></thead><tbody id="us-models"></tbody></table></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>任务队列</h3><button class="btn sm" id="btn-jobs-refresh">刷新</button></div>
+            <div class="table-wrap" style="max-height:330px"><table class="data"><thead><tr><th>任务</th><th>状态</th><th>尝试</th><th>时间</th><th></th></tr></thead><tbody id="jobs-body"></tbody></table></div>
+          </div>
+        </div>
+        <div class="grid two">
+          <div class="card">
+            <div class="card-head"><h3>加密备份与恢复</h3></div>
+            <p class="hint field">AES-256-GCM + scrypt 加密为 .mtbak 单文件。口令遗失将无法恢复。</p>
+            <div class="field"><label>备份口令</label><input type="password" id="bk-pass" class="input" placeholder="至少 8 位" /></div>
+            <div class="row-btns"><button class="btn primary" id="btn-backup">导出加密备份</button><button class="btn" id="btn-restore">从备份恢复…</button><button class="btn ghost" id="btn-diag">导出诊断包</button></div>
+            <div class="tiny" id="bk-status" style="margin-top:8px"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>MCP 集成</h3><span class="tag-pill" id="mcp-state">未启用</span></div>
+            <p class="hint field">标准 MCP（JSON-RPC 2.0 / Streamable HTTP）。需先开启下方「本机 API」。</p>
+            <div class="field"><label>端点</label><code class="code-line" id="mcp-url"></code></div>
+            <div class="chips" id="mcp-tabs" style="margin-bottom:6px"><button class="chip active" data-mcp="cursor">Cursor</button><button class="chip" data-mcp="claude">Claude Desktop</button></div>
+            <pre class="code-block" id="mcp-config"></pre>
+            <div class="row-btns"><button class="btn sm" id="btn-mcp-copy">复制配置</button></div>
+            <div class="tiny" id="mcp-tools" style="margin-top:8px"></div>
+          </div>
+        </div>
+
         <div class="card settings-group">
           <div class="group-title">AI 模型</div>
           <h3 style="margin-top:0">OpenAI 兼容接口</h3>
@@ -448,5 +517,6 @@
   <script src="js/icons.js"></script>
   <script src="js/charts.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/pro.js"></script>
 </body>
 </html>

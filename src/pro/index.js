@@ -296,7 +296,7 @@ function analytics(from, to) {
   const sessions = [];
   let cur = null;
   const byApp = {}, byProject = {};
-  let totalMs = 0;
+  let totalMs = 0, afkMs = 0, lastEnd = null;
   for (const r of rows) {
     const app = friendlyAppName(r.app_name, r.process_name, r.window_title);
     const dur = r.duration_ms || 0;
@@ -308,6 +308,8 @@ function analytics(from, to) {
     if (prev && prev !== app) switches += 1;
     prev = app;
     const end = r.started_at + dur;
+    if (lastEnd != null && r.started_at - lastEnd > SESSION_GAP) afkMs += r.started_at - lastEnd;
+    lastEnd = Math.max(lastEnd || 0, end);
     if (cur && r.started_at - cur.end <= SESSION_GAP && (cur.apps.size < 3 || cur.apps.has(app))) {
       cur.end = Math.max(cur.end, end); cur.apps.add(app); cur.events += 1;
     } else {
@@ -327,6 +329,7 @@ function analytics(from, to) {
     from, to, events: rows.length, totalMinutes: Math.round(totalMs / 60000),
     contextSwitches: switches, switchesPerHour: Math.round(switchesPerHour * 10) / 10,
     focusSessions: focus.slice(0, 10), deepWorkMinutes: Math.round(deepMs / 60000), deepWorkScore: score,
+    afkMinutes: Math.round(afkMs / 60000),
     apps: top(byApp), projects: top(byProject)
   };
 }

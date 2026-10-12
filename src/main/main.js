@@ -127,6 +127,22 @@ async function runScreenshotTour() {
     }
     await capture(file);
   }
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=insights]')?.click()`);
+  await wait(800); await capture('20-insights.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=wiki]')?.click()`);
+  await wait(700);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-mstatus=pending]')?.click()`);
+  await wait(500); await capture('21-wiki-review.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-mstatus=active]')?.click()`);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=collect]')?.click()`);
+  await wait(700);
+  await mainWindow.webContents.executeJavaScript(`document.getElementById('btn-rule-add')?.click(); document.getElementById('rules-body')?.closest('.card')?.scrollIntoView({block:'start'})`);
+  await wait(500); await capture('22-privacy-audit.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=ai]')?.click()`);
+  await wait(800); await capture('23-usage-jobs.png');
+  await mainWindow.webContents.executeJavaScript(`document.getElementById('mcp-config')?.closest('.card')?.scrollIntoView({block:'center'})`);
+  await wait(400); await capture('24-backup-mcp.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelectorAll('.view').forEach(v=>v.scrollTop=0); document.querySelector('.content, main')?.scrollTo?.(0,0)`);
   // Dark mode tour
   await mainWindow.webContents.executeJavaScript(`
     document.body.setAttribute('data-theme','dark');
@@ -141,6 +157,18 @@ async function runScreenshotTour() {
     await wait(600);
     await capture(file);
   }
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=insights]')?.click()`);
+  await wait(700); await capture('25-insights-dark.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=wiki]')?.click()`);
+  await wait(600);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-mstatus=pending]')?.click()`);
+  await wait(500); await capture('26-wiki-review-dark.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=collect]')?.click()`);
+  await wait(600);
+  await mainWindow.webContents.executeJavaScript(`document.getElementById('audit-body')?.closest('.card')?.scrollIntoView({block:'end'})`);
+  await wait(400); await capture('27-audit-dark.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=ai]')?.click()`);
+  await wait(700); await capture('28-settings-pro-dark.png');
   // Empty states (demo off)
   setDemoMode(false);
   await mainWindow.webContents.executeJavaScript(`
@@ -488,6 +516,31 @@ function seedDemoData() {
       vscode && { key: 'E3', kind: 'activity', id: vscode.id, type: 'window', label: `${vscode.app_name || ''} ${vscode.window_title || ''}`.trim(), started_at: vscode.started_at }
     ].filter(Boolean)
   );
+  seedProDemo(now);
+}
+
+function seedProDemo(now) {
+  const H = 3600e3, M = 60e3;
+  const q = (sql, a) => { try { store.run(sql, a); } catch (e) { appendLog('WARN', 'seed-pro', e); } };
+  const aud = [
+    [now - 12 * M, 'capture', 'blocked', '1Password', '{"reason":"sensitive-app","示例":true}'],
+    [now - 35 * M, 'mcp', 'call', 'search', '{"query":"知迹 发布","示例":true}'],
+    [now - 48 * M, 'capture', 'title-only', 'Chrome', '{"reason":"rule:site:intranet.corp","示例":true}'],
+    [now - 70 * M, 'mcp', 'call', 'get_wiki_page', '{"slug":"day-today","示例":true}'],
+    [now - 2 * H, 'llm', 'call', 'deepseek-chat', '{"purpose":"rollup","示例":true}'],
+    [now - 3 * H, 'capture', 'blocked', 'Edge InPrivate', '{"reason":"sensitive-window","示例":true}'],
+    [now - 5 * H, 'backup', 'encrypted', 'D:/备份/MindTrace.mtbak', '{"activities":412,"示例":true}'],
+    [now - 26 * H, 'wipe', 'range', '昨日 12:00~12:15', '{"activities":6,"示例":true}']
+  ];
+  aud.forEach((r, i) => q(`INSERT OR REPLACE INTO audit_log (id,ts,kind,action,target,detail) VALUES (?,?,?,?,?,?)`, ['demo-a' + i, ...r]));
+  const use = [['deepseek-chat', 'summarize', 3200, 820, 0.0018, 2100, 1], ['deepseek-chat', 'rollup', 5400, 1300, 0.0029, 2900, 1], ['deepseek-chat', 'chat', 1800, 640, 0.0012, 1600, 1], ['qwen-vl-plus', 'vision', 2100, 300, 0.0012, 3400, 1], ['deepseek-chat', 'rollup', 0, 0, 0, 30000, 0]];
+  for (let d = 0; d < 9; d++) use.forEach((u, i) => q(`INSERT OR REPLACE INTO llm_usage (id,ts,provider,model,purpose,prompt_tokens,completion_tokens,cost_usd,latency_ms,ok,error) VALUES (?,?,?,?,?,?,?,?,?,?,?)`, [`demo-u${d}-${i}`, now - d * 20 * H - i * M, 'deepseek', u[0], u[1], u[2], u[3], u[4] * 3, u[5], u[6], u[6] ? null : '超时（示例）']));
+  const jobs = [['rollup', 'done', 1, now - 15 * M, null], ['summarize', 'done', 1, now - 62 * M, null], ['rollup', 'failed', 2, now - 2 * H, 'AI API 429: rate limited（示例）'], ['rollup', 'done', 1, now - 3 * H, null], ['summarize', 'done', 2, now - 6 * H, null]];
+  jobs.forEach((j, i) => q(`INSERT OR REPLACE INTO jobs (id,kind,status,params,attempts,created_at,started_at,finished_at,error) VALUES (?,?,?,?,?,?,?,?,?)`, ['demo-j' + i, j[0], j[1], JSON.stringify({ level: 'hour', demo: true }), j[2], j[3], j[3], j[3] + 4000, j[4]]));
+  [['preference', '【示例】偏好在上午处理需要深度专注的编码任务', 0.62], ['decision', '【示例】2.2 版本暂缓 utilityProcess 隔离，优先隐私规则', 0.7], ['fact', '【示例】张三负责 Windows 安装包签名', 0.66]]
+    .forEach(([kind, text, confidence]) => store.upsertMemory({ kind, text, confidence, status: 'pending' }));
+  [['preference', '【示例】默认使用 DeepSeek 作为摘要模型', 0.9], ['fact', '【示例】知迹的数据只保存在本机 SQLite', 0.92]]
+    .forEach(([kind, text, confidence]) => store.upsertMemory({ kind, text, confidence, status: 'active' }));
 }
 
 function setDemoMode(on) {

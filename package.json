@@ -1,7 +1,7 @@
 {
   "name": "mindtrace",
   "productName": "知迹 MindTrace",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "全景个人计算活动采集与 LLM Wiki 知识资产系统",
   "main": "src/main/main.js",
   "author": "MindTrace",
