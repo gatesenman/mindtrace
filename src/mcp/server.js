@@ -29,6 +29,23 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { day: { type: 'string' }, range: { type: 'string', enum: ['day', 'week'] } } } },
   { name: 'add_note', description: '写入一条速记（Markdown），立即可被检索。',
     inputSchema: { type: 'object', properties: { title: { type: 'string' }, content: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } } }, required: ['content'] } }
+  ,
+  { name: 'get_profile', description: '获取"关于我"的档案：偏好/习惯/技能/关系/个人事实/决策，以及开放中的承诺。不含私密记忆。',
+    inputSchema: { type: 'object', properties: { budget: { type: 'number', description: 'token 预算，默认 1200' } } } },
+  { name: 'recall', description: '按问题召回相关记忆、情景与承诺，遵守 token 预算（档案 ≤40%）。',
+    inputSchema: { type: 'object', properties: { query: { type: 'string' }, budget: { type: 'number' }, include_history: { type: 'boolean' } }, required: ['query'] } },
+  { name: 'get_episodes', description: '获取情景片段（≥15 分钟的活动块），可按日期与关键词过滤。',
+    inputSchema: { type: 'object', properties: { day: { type: 'string' }, query: { type: 'string' }, limit: { type: 'number' } } } },
+  { name: 'remember', description: '请知迹记住一件关于用户的事。写入后进入「待处理」由用户审核。',
+    inputSchema: { type: 'object', properties: { text: { type: 'string' }, type: { type: 'string', enum: ['preference', 'habit', 'skill', 'relationship', 'fact_self', 'decision'] }, scope: { type: 'string', enum: ['normal', 'private'] } }, required: ['text'] } },
+  { name: 'get_calendar', description: '获取日程：计划轨（会议/待办/截止）与实际轨（活动块）。',
+    inputSchema: { type: 'object', properties: { from: { type: 'string', description: 'YYYY-MM-DD' }, days: { type: 'number' }, include_proposed: { type: 'boolean' } } } },
+  { name: 'add_calendar_item', description: '新增日程建议（进入待处理，需用户确认）。time 支持中文时间表达，如"明天下午3点"。',
+    inputSchema: { type: 'object', properties: { title: { type: 'string' }, time: { type: 'string' }, kind: { type: 'string', enum: ['meeting', 'todo', 'deadline', 'reminder'] } }, required: ['title'] } },
+  { name: 'complete_calendar_item', description: '把日程/待办标记为完成。',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+  { name: 'forget_subject', description: '请求遗忘某个人/项目/关键词（需在应用内确认后执行，MCP 只能发起请求）。',
+    inputSchema: { type: 'object', properties: { subject: { type: 'string' } }, required: ['subject'] } }
 ];
 
 function text(obj) {
@@ -85,6 +102,34 @@ async function callTool(name, args = {}) {
       if (id) store.indexActivityFts({ id, ...row });
       store.persist();
       return text({ ok: !!id, id });
+    }
+    case 'get_profile': { require('../core/schema').migrate(); return text(require('../memory').getProfile({ budget: args.budget || 1200, scope: 'mcp' })); }
+    case 'recall': { require('../core/schema').migrate(); return text(require('../memory').recall(String(args.query || ''), { budget: args.budget || 2000, scope: 'mcp', includeHistory: !!args.include_history })); }
+    case 'get_episodes': {
+      require('../core/schema').migrate();
+      const [from, to] = args.day ? dayRange(args.day) : [Date.now() - 7 * 86400000, Date.now()];
+      return text(require('../calendar/blocks').getEpisodes({ from, to, q: args.query, limit: Math.min(100, args.limit || 30) }));
+    }
+    case 'remember': { require('../core/schema').migrate(); const r = require('../memory').remember(String(args.text || ''), { type: args.type, scope: args.scope }); return text({ ...r, note: r.op === 'SKIP' ? '未写入：' + r.reason : '已提交，等待用户在「待处理」中审核' }); }
+    case 'get_calendar': {
+      require('../core/schema').migrate();
+      const cal = require('../calendar');
+      const from = args.from ? new Date(args.from + 'T00:00:00+08:00').getTime() : Date.now() - 3600000;
+      const r = cal.listRange(from, from + Math.min(62, args.days || 7) * 86400000, { includeProposed: !!args.include_proposed });
+      return text({ plan: r.plan.map(e => ({ id: e.id, kind: e.kind_label, title: e.title, start: e.start_at && new Date(e.start_at).toISOString(), end: e.end_at && new Date(e.end_at).toISOString(), status: e.status })), actual: r.actual.slice(0, 80).map(b => ({ title: b.title, minutes: b.minutes, start: new Date(b.start).toISOString() })) });
+    }
+    case 'add_calendar_item': {
+      require('../core/schema').migrate();
+      const t = args.time ? require('../calendar/zhtime').parse(String(args.time), Date.now())[0] : null;
+      const id = require('../calendar').create({ kind: args.kind || 'todo', title: String(args.title || '').slice(0, 80), start_at: t?.start ?? null, end_at: t?.end ?? null, status: 'proposed', notes: '来自 MCP' }, { by: 'mcp' });
+      return text({ id, status: 'proposed', start: t ? new Date(t.start).toISOString() : null, note: '已加入「待处理」，用户确认后生效' });
+    }
+    case 'complete_calendar_item': { require('../core/schema').migrate(); return text({ ok: require('../calendar').complete(String(args.id)) }); }
+    case 'forget_subject': {
+      require('../core/schema').migrate();
+      const id = require('crypto').randomUUID();
+      store.run(`INSERT INTO merge_suggestions (id,a,b,score,reason,status,created_at) VALUES (?,?,?,?,?,?,?)`, [id, 'forget', String(args.subject || ''), 1, '遗忘请求（来自 MCP）', 'forget_request', Date.now()]);
+      return text({ requested: true, note: '遗忘需要用户在应用内确认' });
     }
     default:
       return { isError: true, ...text('未知工具: ' + name) };

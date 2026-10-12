@@ -28,6 +28,10 @@ function extractUserText(messages) {
 }
 
 function replyFor(userText) {
+  // v2.3 统一抽取（与应用内规则抽取器同源，确定性）
+  if (/UNIFIED_EXTRACT/.test(userText) && /<chunks>/.test(userText)) {
+    return JSON.stringify(require('../src/pipeline/rules').answerPrompt(userText));
+  }
   // Vision
   if (userText.includes('[IMAGE]') || /截屏|vision|app_guess/.test(userText)) {
     return JSON.stringify({

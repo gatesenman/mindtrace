@@ -51,6 +51,14 @@ function start(opts = {}) {
       return res.end();
     }
     const cfgNow = getConfig();
+    if (req.method === 'GET' && req.url.startsWith('/calendar/feed.ics')) {
+      const u = new URL(req.url, 'http://127.0.0.1');
+      const tok = cfgNow.calendar?.feedToken;
+      if (!tok || u.searchParams.get('token') !== tok) { res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('unauthorized'); }
+      const ics = require('../calendar').exportIcs({ includeProposed: false });
+      res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'no-cache' });
+      return res.end(ics);
+    }
     if (!authOk(req, cfgNow)) return json(res, 401, { error: 'unauthorized' });
 
     const url = new URL(req.url, `http://127.0.0.1:${port}`);

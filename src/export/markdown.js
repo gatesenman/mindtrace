@@ -97,7 +97,8 @@ ${highlights.map(h => `- ${h}`).join('\n')}
   fs.writeFileSync(path.join(journalsDir, '日刊.md'), `# 日刊\n\n` + journals.map(j => `- [[${j.period_key}]] ${j.title || ''}`).join('\n') + '\n', 'utf8');
   fs.writeFileSync(path.join(cardsRoot, '卡片.md'), `# 卡片\n\n共 ${cards.length} 张\n`, 'utf8');
 
-  return { vaultPath, cards: cards.length, journals: journals.length, activities: acts.length };
+  let kbPages = 0; try { require("../core/schema").migrate(); kbPages = require("../kb/vault").exportKb(vaultPath); } catch (e) { console.error("[export] kb", e.message); }
+  return { vaultPath, cards: cards.length, journals: journals.length, activities: acts.length, kbPages };
 }
 
 module.exports = { exportVault };
