@@ -61,5 +61,14 @@ contextBridge.exposeInMainWorld('mindtrace', {
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
+  // v2.3
+  v23: (channel, arg) => {
+    if (!/^v23-[a-z0-9-]+$/.test(channel)) return Promise.reject(new Error('bad channel'));
+    return ipcRenderer.invoke(channel, arg);
+  },
+  onV23: (event, cb) => {
+    if (!['v23-changed', 'reminder', 'open-view'].includes(event)) return () => {};
+    const fn = (_e, d) => cb(d); ipcRenderer.on(event, fn); return () => ipcRenderer.removeListener(event, fn);
+  },
   getAppVersion: () => ipcRenderer.invoke('get-app-version')
 });

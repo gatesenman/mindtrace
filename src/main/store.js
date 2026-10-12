@@ -601,6 +601,18 @@ function upsertWikiPage(page) {
 
 function upsertMemory(mem) {
   const now = Date.now();
+  // v2.3：待办归日历所有（D2）；旧 kind 映射
+  if (mem.kind === 'todo') {
+    try {
+      const key = crypto.createHash('sha1').update('todo|' + String(mem.text || '').trim()).digest('hex').slice(0, 16);
+      if (!get(`SELECT 1 FROM calendar_events WHERE dedupe_key=?`, [key]) && !get(`SELECT 1 FROM tombstones WHERE key=?`, ['cal:' + key])) {
+        run(`INSERT INTO calendar_events (id,layer,kind,title,status,confidence,created_by,dedupe_key,time_certainty,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [crypto.randomUUID(), 'plan', 'todo', String(mem.text).slice(0, 80), 'proposed', mem.confidence ?? 0.6, 'ai', key, 'none', '来自日卷/摘要', now, now]);
+      }
+      return null;
+    } catch (_) { /* 旧库无 calendar_events 时回落为记忆 */ }
+  }
+  if (mem.kind === 'fact') mem = { ...mem, kind: 'fact_self' };
   const key = mem.dedupe_key || crypto.createHash('sha1').update(String(mem.text || '').trim().toLowerCase()).digest('hex').slice(0, 16);
   const existing = get(`SELECT id, confidence FROM memories WHERE dedupe_key=? AND status IN ('active','pending')`, [key]);
   if (existing) {

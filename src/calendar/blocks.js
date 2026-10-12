@@ -30,7 +30,23 @@ function computeBlocks(from, to) {
     cur = { key, kind: meet ? 'meeting' : 'activity', category: meet ? '会议' : category(a.app_name), app: a.app_name, start: a.started_at, end, events: [a.id], titles: new Set(a.window_title ? [a.window_title.slice(0, 60)] : []) };
   }
   if (cur) blocks.push(cur);
-  return blocks.map(b => ({ id: `blk-${b.start}`, kind: b.kind, category: b.category, app: b.app, start: b.start, end: b.end, minutes: Math.round((b.end - b.start) / 60000), title: b.kind === 'meeting' ? `会议 · ${[...b.titles][0] || b.app}` : `${b.category} · ${b.app || ''}`, titles: [...b.titles].slice(0, 5), event_ids: b.events.slice(0, 50) }));
+  // 第二遍：<10 分钟的碎片块并入相邻块（间隔 ≤3 分钟），按时长取主导类别 → 10 分钟粒度的可读块
+  const merged = [];
+  for (const b of blocks) {
+    const prev = merged[merged.length - 1];
+    const short = (x) => x.end - x.start < 10 * 60000;
+    if (prev && b.kind !== 'meeting' && prev.kind !== 'meeting' && b.start - prev.end <= AFK && (short(b) || short(prev))) {
+      prev.mix = prev.mix || { [prev.category]: prev.end - prev.start };
+      prev.mix[b.category] = (prev.mix[b.category] || 0) + (b.end - b.start);
+      prev.end = Math.max(prev.end, b.end); prev.events.push(...b.events); for (const x of b.titles) prev.titles.add(x);
+      prev.apps = prev.apps || new Set([prev.app]); prev.apps.add(b.app);
+      const top = Object.entries(prev.mix).sort((x, y) => y[1] - x[1])[0][0]; prev.category = top;
+      continue;
+    }
+    merged.push(b);
+  }
+  blocks.length = 0; blocks.push(...merged);
+  return blocks.map(b => ({ id: `blk-${b.start}`, kind: b.kind, category: b.category, app: b.app, start: b.start, end: b.end, minutes: Math.round((b.end - b.start) / 60000), title: b.kind === 'meeting' ? `会议 · ${[...b.titles][0] || b.app}` : b.apps && b.apps.size > 1 ? `${b.category} · ${[...b.apps].filter(Boolean).slice(0, 3).join(' / ')}` : `${b.category} · ${b.app || ''}`, titles: [...b.titles].slice(0, 5), event_ids: b.events.slice(0, 50) }));
 }
 
 /** ≥15 分钟的块 → episodes(level=block) */

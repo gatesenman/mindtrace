@@ -7,6 +7,7 @@
   <title>知迹 MindTrace</title>
   <link rel="stylesheet" href="vendor/uPlot.min.css" />
   <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="css/v23.css" />
 </head>
 <body data-theme="light">
   <div id="app" class="shell">
@@ -54,16 +55,19 @@
           <div class="nav-section-label">记录</div>
           <button data-view="dashboard" title="今日总览 · Ctrl+1" class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="nav-label">今日总览</span></button>
           <button data-view="timeline" title="时间线 · Ctrl+2" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="nav-label">时间线</span></button>
+          <button data-view="calendar" title="日历 · Ctrl+8" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h3v3h-3z"/></svg><span class="nav-label">日历</span></button>
           <button data-view="insights" title="洞察 · Ctrl+7" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg><span class="nav-label">洞察</span></button>
         </div>
         <div class="nav-section">
           <div class="nav-section-label">知识</div>
-          <button data-view="wiki" title="Wiki · Ctrl+3" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6"/></svg><span class="nav-label">Wiki</span></button>
+          <button data-view="kb" title="知识库 · Ctrl+3" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="7" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8.3 7.1l7.4-.2M7.2 8.2l3.6 7.6M16.9 9.2l-3.7 6.7"/></svg><span class="nav-label">知识库</span></button>
+          <button data-view="wiki" title="时间卷 Wiki" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6"/></svg><span class="nav-label">Wiki</span></button>
           <button data-view="memory" title="记忆 · Ctrl+4" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0-6 6c0 2.2 1.2 3.7 2.5 4.8.9.8 1.5 1.7 1.5 2.7V18h4v-1.5c0-1 .6-1.9 1.5-2.7C16.8 12.7 18 11.2 18 9a6 6 0 0 0-6-6z"/><path d="M10 21h4"/></svg><span class="nav-label">记忆</span><span class="nav-badge hidden" id="nav-mem-badge"></span></button>
           <button data-view="knowledge" title="报告 · Ctrl+5" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4v15.5"/><path d="M8 4h12v13H8z"/></svg><span class="nav-label">报告</span></button>
         </div>
         <div class="nav-section">
           <div class="nav-section-label">助手</div>
+          <button data-view="inbox" title="待处理 · Ctrl+9" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/></svg><span class="nav-label">待处理</span><span class="nav-badge hidden" id="nav-inbox-badge"></span></button>
           <button data-view="chat" title="智能问答 · Ctrl+6" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg><span class="nav-label">智能问答</span></button>
         </div>
         <div class="nav-section nav-bottom">
@@ -105,6 +109,9 @@
           <button class="btn primary" id="btn-h-wiki-day" data-scope="wiki">生成今日日卷</button>
           <button class="btn" id="btn-h-new-chat" data-scope="chat">新对话</button>
           <button class="btn" id="btn-h-weekly" data-scope="insights">复制周回顾</button>
+          <button class="btn" id="btn-h-kb-run" data-scope="kb,inbox,memory">立即整理</button>
+          <button class="btn" id="btn-h-cal-ics" data-scope="calendar">导出 ICS</button>
+          <button class="btn primary" id="btn-h-cal-new" data-scope="calendar">新建日程</button>
         </div>
       </header>
 
@@ -265,6 +272,9 @@
         <div class="card"><div id="memory-list" class="mem-grid"></div></div>
       </section>
 
+      <section id="view-kb" class="view hidden"><div id="kb-root"></div></section>
+      <section id="view-calendar" class="view hidden"><div id="cal-root"></div></section>
+      <section id="view-inbox" class="view hidden"><div id="inbox-root"></div></section>
       <section id="view-insights" class="view hidden">
         <div class="grid stats">
           <div class="card stat"><div class="label">深度工作分</div><div class="value" id="in-score">—</div><div class="delta flat" id="in-score-sub">0–100，越高越专注</div></div>
@@ -547,5 +557,6 @@
   <script src="js/app.js"></script>
   <script src="js/pro.js"></script>
   <script src="js/ux.js"></script>
+  <script src="js/v23.js"></script>
 </body>
 </html>

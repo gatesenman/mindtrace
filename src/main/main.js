@@ -1,6 +1,6 @@
 const {
   app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen,
-  clipboard, desktopCapturer, dialog, shell, globalShortcut
+  clipboard, desktopCapturer, dialog, shell, globalShortcut, Notification
 } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
@@ -22,6 +22,11 @@ const workerHost = require('../worker/host');
 const wikiEngine = require('../wiki/engine');
 const mcpServer = require('../mcp/server');
 const pro = require('../pro');
+const v23 = {
+  schema: require('../core/schema'), pipeline: require('../core/pipeline'), inbox: require('../core/inbox'), forget: require('../core/forget'),
+  search: require('../core/search'), budget: require('../core/budget'), demo: require('../core/demo'),
+  kb: require('../kb'), memory: require('../memory'), calendar: require('../calendar'), zhtime: require('../calendar/zhtime')
+};
 const { installProcessHandlers, appendLog, getLogPath, initLogger } = require('./logger');
 
 let mainWindow = null;
@@ -56,6 +61,47 @@ if (!gotLock) {
 
 function getConfig() { return config; }
 
+
+
+async function v23TourShots(capture, wait, dark) {
+  const js = (s) => mainWindow.webContents.executeJavaScript(s).catch(e => console.error('tour js', e.message));
+  for (let i = 0; i < 40 && !(v23.demo.ids().entities || []).length; i++) await wait(250);
+  const sfx = dark ? '-dark' : '';
+  await js(`document.querySelector('[data-view=dashboard]')?.click()`); await wait(1200);
+  await js(`document.getElementById('today-v23')?.scrollIntoView({block:'start'})`); await wait(300);
+  await capture(`40-v23-today${sfx}.png`);
+  await js(`document.querySelectorAll('*').forEach(e=>{ if (e.scrollTop) e.scrollTop = 0; })`);
+  await js(`document.querySelector('[data-view=kb]')?.click()`); await wait(900);
+  await js(`(()=>{const it=[...document.querySelectorAll('#kb-list .v-list-item')].find(x=>/知迹 2.3/.test(x.textContent)); it&&it.click();})()`); await wait(700);
+  await capture(`41-kb-entity${sfx}.png`);
+  if (!dark) {
+    await js(`document.querySelector('#kb-tabs [data-t=facts]')?.click()`); await wait(500); await capture('42-kb-facts.png');
+    await js(`document.querySelector('#kb-tabs [data-t=hist]')?.click()`); await wait(500); await capture('43-kb-history.png');
+    await js(`document.querySelector('#kb-tabs [data-t=log]')?.click()`); await wait(500); await capture('43b-kb-log.png');
+    await js(`(()=>{document.querySelector('#kb-tabs [data-t=page]')?.click(); const it=[...document.querySelectorAll('#kb-list .v-list-item')].find(x=>/张三/.test(x.textContent)); it&&it.click();})()`); await wait(700);
+    await capture('43c-kb-person.png');
+  }
+  await js(`document.querySelector('[data-view=calendar]')?.click()`); await wait(400);
+  await js(`document.querySelector('#cal-mode [data-m=week]')?.click()`); await wait(900);
+  await capture(`44-calendar-week${sfx}.png`);
+  await js(`document.querySelector('#cal-mode [data-m=day]')?.click()`); await wait(900);
+  await capture(`45-calendar-day${sfx}.png`);
+  if (!dark) {
+    await js(`document.querySelector('#cal-mode [data-m=month]')?.click()`); await wait(800); await capture('46-calendar-month.png');
+    await js(`document.querySelector('#cal-mode [data-m=agenda]')?.click()`); await wait(800); await capture('47-calendar-agenda.png');
+    await js(`(()=>{const q=document.getElementById('cal-quick'); q.value='下周一上午10点 和王芳评审测试平台'; q.dispatchEvent(new Event('input'));})()`); await wait(600);
+    await capture('47b-calendar-quickadd.png');
+    await js(`document.getElementById('cal-quick').value=''; document.getElementById('cal-parse').textContent=''; document.querySelector('#cal-mode [data-m=week]')?.click()`); await wait(700);
+    await js(`document.querySelector('#cal-body .cal-ev')?.click()`); await wait(500); await capture('47c-calendar-popover.png');
+    await js(`document.querySelector('.cal-pop')?.remove()`);
+  }
+  await js(`document.querySelector('[data-view=inbox]')?.click()`); await wait(900);
+  await capture(`48-inbox${sfx}.png`);
+  if (!dark) { await js(`document.querySelector('#ib-tabs [data-t=conflict]')?.click()`); await wait(600); await capture('48b-inbox-conflict.png'); await js(`document.querySelector('#ib-tabs [data-t=all]')?.click()`); }
+  await js(`document.querySelector('[data-view=memory]')?.click()`); await wait(900);
+  await capture(`49-memory${sfx}.png`);
+  if (!dark) { await js(`document.querySelector('#mm-status [data-s=superseded]')?.click()`); await wait(700); await capture('50-memory-superseded.png'); await js(`document.querySelector('#mm-status [data-s=active]')?.click()`); await wait(300); }
+}
 
 async function runScreenshotTour() {
   const shotDir = path.join(__dirname, '../../screenshots');
@@ -175,6 +221,7 @@ async function runScreenshotTour() {
   await mainWindow.webContents.executeJavaScript(`document.getElementById('cmd-overlay')?.classList.add('hidden')`);
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=dashboard]')?.click()`);
   await wait(800); await capture('36-dashboard-checklist.png');
+  await v23TourShots(capture, wait, false);
   // Dark mode tour
   await mainWindow.webContents.executeJavaScript(`
     document.body.setAttribute('data-theme','dark');
@@ -204,6 +251,7 @@ async function runScreenshotTour() {
   await mainWindow.webContents.executeJavaScript(`window.MTUX.settingsTab('data')`);
   await wait(400); await capture('28-settings-pro-dark.png');
   await mainWindow.webContents.executeJavaScript(`window.MTUX.settingsTab('model')`);
+  await v23TourShots(capture, wait, true);
   // Empty states (demo off)
   setDemoMode(false);
   await mainWindow.webContents.executeJavaScript(`
@@ -216,6 +264,9 @@ async function runScreenshotTour() {
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=chat]')?.click()`);
   await wait(500);
   await capture('18-chat-empty.png');
+  for (const [v, f] of [['calendar', '51-calendar-empty.png'], ['inbox', '52-inbox-empty.png'], ['kb', '53-kb-empty.png']]) {
+    await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=${v}]')?.click()`); await wait(700); await capture(f);
+  }
   console.log('SCREENSHOT_TOUR_DONE');
   app.isQuitting = true;
   app.quit();
@@ -392,6 +443,7 @@ function applyBoot() {
 }
 
 function seedDemoData() {
+  try { v23.demo.clear(); } catch (e) { appendLog('WARN', 'demo-v23-clear', e); }
   store.clearDemoData();
   const now = Date.now();
   const dayStart = new Date();
@@ -550,6 +602,7 @@ function seedDemoData() {
     ].filter(Boolean)
   );
   seedProDemo(now);
+  v23.demo.seed(now).then(r => { appendLog('INFO', 'demo-v23', JSON.stringify(r)); mainWindow?.webContents.send('v23-changed', { demo: true }); }).catch(e => appendLog('WARN', 'demo-v23', e));
 }
 
 function seedProDemo(now) {
@@ -599,8 +652,114 @@ function setDemoMode(on) {
   config.demoMode = !!on;
   saveConfig(config);
   if (on) seedDemoData();
-  else store.clearDemoData();
+  else { try { v23.demo.clear(); } catch (_) {} store.clearDemoData(); }
   return { ok: true, demoMode: config.demoMode };
+}
+
+/* ───────── v2.3：统一流水线 / 知识库 / 记忆 / 日历 / 待处理 ───────── */
+let pipelineBusy = false;
+async function runPipeline(trigger = 'manual') {
+  if (pipelineBusy) return { skipped: true };
+  if (trigger !== 'manual' && (!config.authorized || config.v23?.autoPipeline === false)) return { skipped: true };
+  pipelineBusy = true;
+  try {
+    const r = await v23.pipeline.run({ cfg: config });
+    store.persist();
+    mainWindow?.webContents.send('v23-changed', { trigger, summary: r });
+    return r;
+  } catch (e) { appendLog('ERROR', 'pipeline', e); return { error: e.message }; } finally { pipelineBusy = false; }
+}
+function showReminder(n) {
+  try {
+    if (Notification.isSupported()) {
+      const notif = new Notification({ title: n.title, body: n.body + '（点击打开日历）', silent: false });
+      notif.on('click', () => { mainWindow?.show(); mainWindow?.webContents.send('open-view', { view: 'calendar', id: n.id }); });
+      notif.show();
+    }
+  } catch (_) {}
+  mainWindow?.webContents.send('reminder', n);
+}
+function v23Decorate(table, rows) { return (rows || []).map(r => ({ ...r, demo: v23.demo.isDemo(table, r.id) })); }
+function registerV23Ipc() {
+  const h = (name, fn) => ipcMain.handle(name, async (...a) => { try { return await fn(...a); } catch (e) { appendLog('ERROR', name, e); return { ok: false, error: e.message }; } });
+  const dayStart = (ts) => { const d = new Date(ts + 8 * 3600e3); d.setUTCHours(0, 0, 0, 0); return d.getTime() - 8 * 3600e3; };
+  h('v23-run-pipeline', () => runPipeline('manual'));
+  h('v23-overview', () => ({ kb: v23.kb.stats(), memory: v23.memory.stats(), calendar: v23.calendar.stats(), inbox: v23.inbox.counts(), last: v23.pipeline.lastRun(), budget: v23.budget.status(config), fts: store.ftsStatus() }));
+  // 知识库
+  h('v23-kb-entities', (_e, o = {}) => {
+    const w = ["merged_into IS NULL"]; const p = [];
+    if (o.status) { w.push('status=?'); p.push(o.status); } else w.push("status IN ('active','candidate')");
+    if (o.type) { w.push('type=?'); p.push(o.type); }
+    if (o.q) { w.push('(name LIKE ? OR pinyin LIKE ?)'); p.push('%' + o.q + '%', '%' + String(o.q).toLowerCase() + '%'); }
+    return v23Decorate('entities', store.all(`SELECT e.*, (SELECT id FROM wiki_pages w WHERE w.entity_id=e.id) page_id, (SELECT staleness FROM wiki_pages w WHERE w.entity_id=e.id) staleness, (SELECT COUNT(*) FROM claims c WHERE c.entity_id=e.id AND c.status='conflict') conflicts FROM entities e WHERE ${w.join(' AND ')} ORDER BY status='active' DESC, salience DESC LIMIT 300`, p));
+  });
+  h('v23-kb-entity', (_e, id) => { const d = v23.kb.entityDetail(id); if (d) { d.demo = v23.demo.isDemo('entities', d.entity.id); d.claims = d.claims.map(c => ({ ...c, evidence: require('../common/evidence').list('claim', c.id).slice(0, 3) })); } return d; });
+  h('v23-kb-set-notes', (_e, { pageId, notes }) => { const ok = v23.kb.setUserNotes(pageId, notes); store.persist(); return { ok }; });
+  h('v23-kb-revision', (_e, id) => v23.kb.revision(id));
+  h('v23-kb-log', () => v23.kb.logMarkdown(200));
+  h('v23-kb-documents', (_e, o = {}) => v23Decorate('documents', store.all(`SELECT id,kind,title,uri,app,first_seen,last_seen,dwell_ms,privacy_level,version,(SELECT COUNT(*) FROM chunks c WHERE c.doc_id=d.id) chunks FROM documents d ${o.q ? 'WHERE title LIKE ?' : ''} ORDER BY last_seen DESC LIMIT 200`, o.q ? ['%' + o.q + '%'] : [])));
+  h('v23-kb-merge', (_e, { keep, drop }) => ({ op: v23.kb.mergeEntities(keep, drop) }));
+  h('v23-kb-undo-merge', (_e, op) => ({ ok: v23.kb.undoMerge(op) }));
+  h('v23-search', (_e, q) => v23.search.search(q));
+  // 记忆
+  h('v23-memories', (_e, o = {}) => v23Decorate('memories', v23.memory.list(o)));
+  h('v23-memory', (_e, id) => { const m = v23.memory.get(id); if (m) { m.history = v23.memory.history(id); m.demo = v23.demo.isDemo('memories', id); } return m; });
+  h('v23-memory-edit', (_e, { id, text, kind }) => ({ ok: v23.memory.edit(id, { text, kind }) }));
+  h('v23-memory-pin', (_e, { id, on }) => ({ ok: v23.memory.pin(id, on) }));
+  h('v23-memory-delete', (_e, id) => ({ ok: v23.memory.remove(id) }));
+  h('v23-memory-add', (_e, { text, kind }) => v23.memory.ingest({ type: kind || 'preference', text, predicate: kind === 'decision' ? '决定' : undefined, object: text, confidence: 1 }, { source: 'user' }));
+  h('v23-memory-export', async () => {
+    const r = await dialog.showSaveDialog(mainWindow, { defaultPath: 'mindtrace-memories.json', filters: [{ name: 'JSON', extensions: ['json'] }] });
+    if (r.canceled) return { ok: false };
+    fs.writeFileSync(r.filePath, JSON.stringify(v23.memory.exportJson(), null, 2)); return { ok: true, path: r.filePath };
+  });
+  h('v23-profile', () => v23.memory.getProfile({ scope: 'app', budget: 2000 }));
+  h('v23-episodes', (_e, o = {}) => v23Decorate('episodes', require('../calendar/blocks').getEpisodes({ from: o.from || Date.now() - 7 * 86400e3, to: o.to || Date.now() + 86400e3, q: o.q })));
+  // 日历
+  h('v23-calendar-range', (_e, { from, to }) => { const r = v23.calendar.listRange(from, to); r.plan = v23Decorate('calendar_events', r.plan); r.undated = v23Decorate('calendar_events', r.undated); return r; });
+  h('v23-calendar-day-compare', (_e, ts) => v23.calendar.dayCompare(dayStart(ts || Date.now())));
+  h('v23-calendar-create', (_e, ev) => {
+    let start = ev.start_at, end = ev.end_at;
+    if (!start && ev.when) { const t = v23.zhtime.parse(String(ev.when), Date.now())[0]; if (t) { start = t.start; end = t.end || null; } }
+    return { id: v23.calendar.create({ ...ev, start_at: start ?? null, end_at: end ?? null, status: 'confirmed' }, { by: 'user' }) };
+  });
+  h('v23-calendar-update', (_e, { id, patch }) => ({ ok: v23.calendar.update(id, patch) }));
+  h('v23-calendar-complete', (_e, id) => ({ ok: v23.calendar.complete(id) }));
+  h('v23-calendar-delete', (_e, id) => ({ ok: v23.calendar.remove(id) }));
+  h('v23-calendar-snooze', (_e, { id, minutes }) => ({ until: v23.calendar.snooze(id, minutes || 10) }));
+  h('v23-calendar-parse', (_e, text) => v23.zhtime.parse(String(text || ''), Date.now()).map(x => ({ ...x, label: v23.zhtime.fmt(x.start) + (x.end ? ' – ' + v23.zhtime.fmt(x.end).slice(11) : '') })));
+  h('v23-calendar-export-ics', async () => {
+    const r = await dialog.showSaveDialog(mainWindow, { defaultPath: 'mindtrace.ics', filters: [{ name: 'iCalendar', extensions: ['ics'] }] });
+    if (r.canceled) return { ok: false };
+    fs.writeFileSync(r.filePath, v23.calendar.exportIcs()); return { ok: true, path: r.filePath };
+  });
+  h('v23-calendar-feed', () => {
+    config.calendar = config.calendar || {};
+    if (!config.calendar.feedToken) { config.calendar.feedToken = crypto.randomUUID().replace(/-/g, ''); saveConfig(config); }
+    return { url: `http://127.0.0.1:${config.api?.port || 17321}/calendar/feed.ics?token=${config.calendar.feedToken}`, apiEnabled: !!config.api?.enabled };
+  });
+  // 待处理
+  h('v23-inbox', () => v23.inbox.list().map(i => ({ ...i, demo: v23.demo.isDemo({ memory: 'memories', calendar: 'calendar_events', calendar_change: 'calendar_events', merge: 'merge_suggestions', conflict: 'claims' }[i.type], i.id) || (i.type === 'conflict' && v23.demo.isDemo('claims', i.id)) })));
+  h('v23-inbox-counts', () => v23.inbox.counts());
+  h('v23-inbox-act', (_e, { type, id, action, extra }) => { const ok = v23.inbox.act(type, id, action, extra || {}); store.persist(); return { ok }; });
+  // 遗忘
+  h('v23-forget-preview', (_e, subject) => {
+    const like = '%' + subject + '%';
+    const g = (s, p) => store.get(s, p)?.c || 0;
+    return { memories: g(`SELECT COUNT(*) c FROM memories WHERE text LIKE ?`, [like]), calendar: g(`SELECT COUNT(*) c FROM calendar_events WHERE title LIKE ? OR participants LIKE ?`, [like, like]), chunks: g(`SELECT COUNT(*) c FROM chunks WHERE text LIKE ?`, [like]), activities: g(`SELECT COUNT(*) c FROM activities WHERE window_title LIKE ? OR content LIKE ?`, [like, like]) };
+  });
+  h('v23-forget', (_e, { subject, purgeRaw }) => { const r = v23.forget.forgetSubject(subject, { purgeRaw }); store.persist(true); return r; });
+  // 今日合并视图
+  h('v23-today', () => {
+    const s = dayStart(Date.now());
+    const cal = v23.calendar.listRange(s, s + 86400e3);
+    return {
+      plan: v23Decorate('calendar_events', cal.plan), actual: cal.actual, compare: v23.calendar.dayCompare(s),
+      entities: v23Decorate('entities', store.all(`SELECT e.id, e.name, e.type, COUNT(*) n FROM mentions m JOIN entities e ON e.id=m.entity_id WHERE m.ts>=? AND e.status='active' GROUP BY e.id ORDER BY n DESC LIMIT 8`, [s])),
+      memories: v23Decorate('memories', store.all(`SELECT id, kind, text, status FROM memories WHERE (created_at>=? OR last_seen_at>=?) AND status IN ('active','pending') ORDER BY updated_at DESC LIMIT 6`, [s, s])),
+      inbox: v23.inbox.counts()
+    };
+  });
 }
 
 function registerIpc() {
@@ -803,7 +962,8 @@ function registerIpc() {
   // ── v2.2 pro ──
   const safe = fn => async (...a) => { try { return await fn(...a); } catch (e) { return { ok: false, error: e.message }; } };
   ipcMain.handle('pro-audit', (_e, o) => pro.listAudit(o || {}));
-  ipcMain.handle('pro-wipe-range', safe((_e, { from, to }) => { const r = pro.wipeRange(from, to); return { ok: true, ...r }; }));
+  ipcMain.handle('pro-wipe-range', safe((_e, { from, to }) => { const r = pro.wipeRange(from, to); const c = v23.forget.cascadeRange(from, to); store.persist(true); return { ok: true, ...r, derived: c }; }));
+  registerV23Ipc();
   ipcMain.handle('pro-get-rules', () => ({ rules: config.privacy.rules || [], sensitiveDetection: config.privacy.sensitiveDetection !== false, localOnly: !!config.privacy.localOnly }));
   ipcMain.handle('pro-set-rules', safe((_e, o = {}) => {
     if (Array.isArray(o.rules)) config.privacy.rules = o.rules.filter(r => r && r.match).map(r => ({ match: String(r.match), scope: r.scope === 'site' ? 'site' : 'app', mode: ['none', 'title', 'full'].includes(r.mode) ? r.mode : 'none' }));
@@ -880,6 +1040,13 @@ app.whenReady().then(async () => {
   }
   await store.initStore();
   pro.init({ getConfig: () => config });
+  try { v23.schema.migrate(); } catch (e) { appendLog('ERROR', 'v23-migrate', e); }
+  v23.pipeline.setConfigGetter(() => config);
+  v23.memory.setThreshold(config.wiki?.memoryMinConfidence ?? 0.7);
+  v23.calendar.setNotifier(showReminder);
+  setInterval(() => { try { const ids = v23.calendar.tick(); if (ids.length) store.persist(); } catch (e) { console.error('reminder', e.message); } }, 60 * 1000);
+  setInterval(() => runPipeline('timer'), Math.max(5, config.v23?.pipelineIntervalMin || 10) * 60 * 1000);
+  setTimeout(() => runPipeline('boot'), 30 * 1000);
   store.setInsertPolicy(row => pro.applyPolicy(row));
   store.setMemoryThreshold(config.wiki?.memoryMinConfidence ?? 0.75);
   pro.registerJob('summarize', () => summarizer.buildDailyJournal(config).then(r => ({ id: r && r.id })));

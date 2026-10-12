@@ -126,6 +126,8 @@ function ingestNew({ limit = 20000 } = {}) {
 
 /* ───────── 实体解析 ───────── */
 function resolveEntity(name, type = 'topic', { create = true } = {}) {
+  name = String(name || '').trim().replace(/的$/, '');
+  if (/^[\d.\s]+$/.test(name)) return null;
   const norm = U.normName(name); if (!norm || norm.length < 2 && !/[\u4e00-\u9fa5]/.test(norm)) return null;
   if (U.tombstoned('entity:' + norm)) return null;
   const follow = (id) => { let e = store.get(`SELECT * FROM entities WHERE id=?`, [id]); let n = 0; while (e && e.merged_into && n++ < 5) e = store.get(`SELECT * FROM entities WHERE id=?`, [e.merged_into]); return e; };

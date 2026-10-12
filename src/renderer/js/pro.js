@@ -100,6 +100,7 @@
   const _loadWiki = window.loadWiki;
   window.loadWiki = async function () { await _loadWiki(); await renderMemories(); };
   async function renderMemories() {
+    if (!$('memory-list')) return; // v2.3 记忆页由 v23.js 渲染
     const [c, list] = await Promise.all([mt.proMemoryCounts(), mt.proReviewQueue(memStatus)]);
     ['active', 'pending', 'rejected'].forEach(k => { if ($('mc-' + k)) $('mc-' + k).textContent = c[k] || 0; });
     $('memory-list').innerHTML = list.map(m => `

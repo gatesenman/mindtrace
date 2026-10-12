@@ -38,7 +38,7 @@ function extractEntities(text, known = []) {
   return [...out.values()];
 }
 
-const CLAIM_RE = /([\u4e00-\u9fa5A-Za-z0-9]{2,16}?)(?:的)?(发布日期|发布时间|上线时间|上线日期|截止日期|负责人|技术栈|版本号|预算)\s*(?:是|为|定在|定于|改到|改为|:|：)\s*([^\s，。,;；]{1,30})/g;
+const CLAIM_RE = /([\u4e00-\u9fa5A-Za-z0-9][\u4e00-\u9fa5A-Za-z0-9 .\-]{1,20}?)\s*(?:的)?(发布日期|发布时间|上线时间|上线日期|截止日期|负责人|技术栈|版本号|预算)\s*(?:是|为|定在|定于|改到|改为|:|：)\s*([^\s，。,;；]{1,30})/g;
 const CLAIM_RE2 = /([\u4e00-\u9fa5A-Za-z0-9]{2,16}?)\s*(?:计划|预计|将|定于|定在)\s*(\d{1,2}\s*月\s*\d{1,2}\s*[日号])\s*(发布|上线)/g;
 function extractClaims(text, ts) {
   const out = []; let m;
@@ -47,7 +47,7 @@ function extractClaims(text, ts) {
   while ((m = CLAIM_RE.exec(text))) {
     let pred = m[2].replace('时间', '日期').replace('上线日期', '发布日期');
     const obj = /日期/.test(pred) ? normDate(m[3]) : m[3];
-    out.push({ subject: m[1].split(/了|和|与|跟|说|：|:|，|讨论/).pop().replace(/^(项目|产品)/, '') || m[1], predicate: pred, object: obj, quote: m[0], confidence: 0.75 });
+    out.push({ subject: (m[1].split(/了|和|与|跟|说|：|:|，|讨论|。/).pop().replace(/^(项目|产品)/, '').replace(/的$/, '').trim()) || m[1], predicate: pred, object: obj, quote: m[0], confidence: 0.75 });
   }
   CLAIM_RE2.lastIndex = 0;
   while ((m = CLAIM_RE2.exec(text))) out.push({ subject: m[1], predicate: '发布日期', object: normDate(m[2]), quote: m[0], confidence: 0.7 });
