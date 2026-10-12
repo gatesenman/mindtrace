@@ -88,8 +88,11 @@ body { --plan: var(--brand); --plan-soft: var(--brand-soft); --actual: #0F9F6E; 
 .cal-now { position: absolute; left: 52px; right: 0; height: 2px; background: var(--danger); z-index: 3; pointer-events: none; }
 .cal-now::before { content: ''; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }
 .cal-week { display: grid; grid-template-columns: 52px repeat(7, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg-elevated); }
-.cal-week .cal-track .cal-ev { right: 30%; left: 3px; }
-.cal-week .cal-track .cal-blk { left: auto; right: 3px; width: 24%; padding: 0; font-size: 0; }
+.cal-week .cal-track { overflow: hidden; }
+/* 实际轨贴本列左侧（紧挨本列边框），计划/建议在右，避免看起来属于下一列 */
+.cal-week .cal-track::before { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 12px; background: var(--actual-soft); opacity: .5; pointer-events: none; }
+.cal-week .cal-track .cal-blk { left: 2px; right: auto; width: 8px; padding: 0; font-size: 0; border-left: 0; border-radius: 2px; background: var(--actual); opacity: .85; }
+.cal-week .cal-track .cal-ev { left: 16px; right: 4px; }
 .cal-week .cal-col-head.today { color: var(--brand); }
 .cal-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg-elevated); }
 .cal-mh { padding: 8px; font-size: var(--fs-xs); color: var(--text-3); border-bottom: 1px solid var(--border); text-align: center; }
