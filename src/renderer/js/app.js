@@ -32,9 +32,10 @@ function toast(msg) {
 }
 
 function fmtMin(ms) {
-  const m = Math.round((ms || 0) / 60000);
-  if (m < 60) return `${m} 分钟`;
-  return `${Math.floor(m / 60)} 小时 ${m % 60} 分`;
+  const m = Math.max(0, Math.round((ms || 0) / 60000));
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60), r = m % 60;
+  return r ? `${h}h ${r}m` : `${h}h`;
 }
 function fmtTime(ts) {
   const d = new Date(ts);

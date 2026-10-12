@@ -80,9 +80,26 @@ async function runScreenshotTour() {
   await mainWindow.webContents.executeJavaScript(`document.getElementById('ob-finish')?.click()`);
   await wait(1200);
   setDemoMode(true);
+  try { mainWindow.setSize(1280, 840); } catch (_) {}
   await mainWindow.webContents.executeJavaScript(`window.mindtrace && (async()=>{const s=document.querySelector('[data-view=dashboard]'); s&&s.click(); await new Promise(r=>setTimeout(r,400));})()`);
   await wait(1200);
   await capture('05-dashboard.png');
+  // 1024px width sweep — ensure KPI / chrome do not wrap or clip
+  try { mainWindow.setSize(1024, 720); } catch (_) {}
+  await wait(500);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=dashboard]')?.click()`);
+  await wait(700);
+  await capture('05b-dashboard-1024.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=timeline]')?.click()`);
+  await wait(500); await capture('06d-timeline-1024.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=wiki]')?.click()`);
+  await wait(500); await capture('07d-wiki-1024.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=chat]')?.click()`);
+  await wait(500); await capture('08b-chat-1024.png');
+  try { mainWindow.setSize(1280, 840); } catch (_) {}
+  await wait(400);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=dashboard]')?.click()`);
+  await wait(400);
   // Timeline with zoom levels
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=timeline]')?.click()`);
   await wait(700);
@@ -337,7 +354,7 @@ function seedDemoData() {
     const item = catalog[n % catalog.length];
     const ti = Math.floor(n / catalog.length) % item.titles.length;
     const title = item.titles[ti];
-    const durMin = item.dur[ti % item.dur.length];
+    const durMin = Math.max(5, Math.round(item.dur[ti % item.dur.length] * 0.7));
     const start = cursor;
     const duration_ms = durMin * 60000;
     const row = {
@@ -361,22 +378,48 @@ function seedDemoData() {
     if (cursor > base + 22 * 3600000) cursor = base + (9 * 60) * 60000 + (n * 7 * 60000);
   }
 
-  // Yesterday baseline (thinner) so KPI deltas are meaningful
-  const yStart = base - 86400000;
-  for (let i = 0; i < 28; i++) {
-    const item = catalog[i % catalog.length];
-    const start = yStart + (9 * 60 + i * 18) * 60000;
-    store.insertActivity({
-      type: item.type === 'browser' ? 'browser' : item.type === 'document' ? 'document' : 'window',
-      started_at: start,
-      ended_at: start + 8 * 60000,
-      duration_ms: 8 * 60000,
-      app_name: item.app,
-      process_name: item.app,
-      window_title: '【昨日】' + item.titles[0],
-      url: item.type === 'browser' ? 'https://example.com/demo-y/' + i : null,
-      meta: { isDemo: true }
-    });
+  // Previous 6 days: varied counts for week-trend + plausible KPI deltas vs yesterday
+  // counts for days -6..-1 (today is seeded above as ~60)
+  const histCounts = [42, 51, 36, 48, 44, 55];
+  const histDurMin = [9, 10, 8, 11, 9, 8]; // day-1 ~8m avg → today ~+8–12% time // avg minutes / event → yesterday ~ close to today
+  for (let d = 6; d >= 1; d--) {
+    const dayBase = base - d * 86400000;
+    const count = histCounts[6 - d];
+    const avgDur = histDurMin[6 - d];
+    let cursor = dayBase + (8 * 60 + 40) * 60000;
+    for (let i = 0; i < count; i++) {
+      const item = catalog[i % catalog.length];
+      const ti = i % item.titles.length;
+      const durMin = Math.max(4, avgDur + ((i % 5) - 2));
+      const start = cursor;
+      const duration_ms = durMin * 60000;
+      store.insertActivity({
+        type: item.type,
+        started_at: start,
+        ended_at: start + duration_ms,
+        duration_ms,
+        app_name: item.app,
+        process_name: item.app,
+        window_title: `【示例·D-${d}】` + item.titles[ti],
+        url: item.type === 'browser' ? `https://example.com/demo/d${d}/${i}` : null,
+        file_path: item.type === 'document' ? (item.paths && item.paths[ti % item.paths.length]) : null,
+        meta: { isDemo: true }
+      });
+      cursor += duration_ms + (3 + (i % 4)) * 60000;
+      if (cursor > dayBase + 21 * 3600000) cursor = dayBase + (9 * 60) * 60000 + i * 9 * 60000;
+    }
+  }
+  // Yesterday cards baseline (~11) so cards delta ≈ +8–10% (today creates 12)
+  const yCardBase = base - 86400000 + 12 * 3600000;
+  for (let i = 0; i < 11; i++) {
+    try {
+      const id = crypto.randomUUID();
+      store.run(
+        `INSERT INTO knowledge_cards (id,kind,title,summary,content,tags,links,source_ids,importance,created_at,updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [id, 'note', `【示例】昨日笔记 ${i + 1}`, '昨日示例卡片', '示例', JSON.stringify(['示例']), null, null, 2, yCardBase + i * 60000, yCardBase + i * 60000]
+      );
+    } catch (_) {}
   }
 
   const cards = [];

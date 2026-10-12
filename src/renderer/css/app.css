@@ -311,7 +311,7 @@ body.sidebar-collapsed .brand { justify-content: center; padding: 8px 0 16px; }
   column-gap: 8px; align-items: start;
 }
 .stat .label { color: var(--text-2); font-size: 12px; font-weight: 500; grid-column: 1; }
-.stat .value { font-size: 26px; font-weight: 700; margin-top: 6px; letter-spacing: -0.03em; line-height: 1.15; font-variant-numeric: tabular-nums; grid-column: 1; }
+.stat .value { font-size: 24px; font-weight: 700; margin-top: 6px; letter-spacing: -0.03em; line-height: 1.15; font-variant-numeric: tabular-nums; grid-column: 1; white-space: nowrap; }
 .stat .delta {
   display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; width: fit-content;
   font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: var(--r-pill); grid-column: 1;
@@ -707,3 +707,31 @@ code { font-family: var(--font-mono); font-size: 12px; }
 .journal-box.md strong { font-weight: 650; }
 .journal-box.md .demo-tag { margin-left: 0; margin-bottom: 8px; }
 .journal-box.md { white-space: normal; min-height: 120px; }
+
+/* narrow layout sweep */
+@media (max-width: 1280px) {
+  .command-bar { padding: 10px 16px; }
+  .main { padding: 16px 16px 32px; }
+  .page-heading h2 { font-size: 18px; }
+  .stat .value { font-size: 22px; }
+  .app-rank-row { grid-template-columns: 26px minmax(64px, 100px) 1fr 56px 40px; gap: 8px; font-size: 12px; }
+  .wiki-layout { grid-template-columns: 240px 1fr 200px; }
+  .top-actions .btn { padding: 0 10px; }
+}
+@media (max-width: 1100px) {
+  .grid.stats { grid-template-columns: repeat(2, 1fr); }
+  .grid.two, .grid.charts, .wiki-layout { grid-template-columns: 1fr; }
+  .stat .value { font-size: 20px; }
+  .stat .spark { width: 56px; height: 24px; }
+  .titlebar { grid-template-columns: auto minmax(200px, 1fr) auto; }
+  .titlebar-brand span { display: none; }
+  .command-bar { flex-wrap: wrap; gap: 10px; }
+  .top-actions { width: 100%; justify-content: flex-end; }
+  .breadcrumb, .page-heading .muted { font-size: 12px; }
+  #recent-list .recent-row { grid-template-columns: 44px 12px 52px 1fr; gap: 8px; font-size: 12px; }
+  .chat-wrap { height: calc(100vh - 200px); min-height: 400px; }
+  .onboard-card { padding: 22px 20px; }
+  .tl-item { grid-template-columns: 56px 1fr; gap: 14px; }
+  .timeline::before { left: 62px; }
+  .tl-item::after { left: 58px; }
+}
