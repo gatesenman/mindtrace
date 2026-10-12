@@ -1,6 +1,23 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('mindtrace', {
+  proAudit: (o) => ipcRenderer.invoke('pro-audit', o),
+  proWipeRange: (o) => ipcRenderer.invoke('pro-wipe-range', o),
+  proGetRules: () => ipcRenderer.invoke('pro-get-rules'),
+  proSetRules: (o) => ipcRenderer.invoke('pro-set-rules', o),
+  proUsage: () => ipcRenderer.invoke('pro-usage'),
+  proJobs: () => ipcRenderer.invoke('pro-jobs'),
+  proRetryJob: (id) => ipcRenderer.invoke('pro-retry-job', id),
+  proReviewQueue: (s) => ipcRenderer.invoke('pro-review-queue', s),
+  proReview: (o) => ipcRenderer.invoke('pro-review', o),
+  proMemoryCounts: () => ipcRenderer.invoke('pro-memory-counts'),
+  proAnalytics: (o) => ipcRenderer.invoke('pro-analytics', o),
+  proWeekly: () => ipcRenderer.invoke('pro-weekly'),
+  proBackup: (o) => ipcRenderer.invoke('pro-backup', o),
+  proRestore: (o) => ipcRenderer.invoke('pro-restore', o),
+  proDiagnostics: () => ipcRenderer.invoke('pro-diagnostics'),
+  proMcpInfo: () => ipcRenderer.invoke('pro-mcp-info'),
+
   getState: () => ipcRenderer.invoke('get-state'),
   setConfig: (patch) => ipcRenderer.invoke('set-config', patch),
   authorize: (ok, collectors) => ipcRenderer.invoke('authorize', ok, collectors),

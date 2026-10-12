@@ -44,7 +44,10 @@ const DEFAULTS = {
     onlyScreenshotApps: ['WeChat', 'WXWork', 'Feishu', 'DingTalk', '微信', '企业微信', '飞书', '钉钉'],
     screenshotRetainDays: 14,
     activityRetainDays: 90,
-    chatMaxMessages: 500
+    chatMaxMessages: 500,
+    rules: [],
+    sensitiveDetection: true,
+    localOnly: false
   },
   watchFolders: [],
   ai: {
@@ -55,7 +58,8 @@ const DEFAULTS = {
     visionModel: '',
     temperature: 0.3,
     autoSummarize: true,
-    summarizeIntervalMin: 60
+    summarizeIntervalMin: 60,
+    monthlyBudgetUsd: 0
   },
   api: {
     enabled: false,

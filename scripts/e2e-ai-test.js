@@ -194,6 +194,81 @@ app.whenReady().then(async () => {
     store.upsertMemory({ kind: 'fact', text: '用户偏好本地优先', confidence: 0.9 });
     pass('memory', store.listMemories().length >= 1);
 
+    // ── v2.2 pro ──
+    const pro = require('../src/pro');
+    pro.init({ getConfig: () => config });
+    store.setInsertPolicy(r => pro.applyPolicy(r));
+    store.setMemoryThreshold(0.75);
+    config.privacy.rules = [{ match: 'secretapp', scope: 'app', mode: 'none' }, { match: 'intranet.corp', scope: 'site', mode: 'title' }];
+    config.privacy.sensitiveDetection = true;
+    const blocked = store.insertActivity({ type: 'window', started_at: Date.now(), app_name: 'SecretApp', window_title: 'x', content: 'hidden' });
+    pass('policy-block', blocked === null);
+    const tid = store.insertActivity({ type: 'browser', started_at: Date.now(), app_name: 'Chrome', window_title: 'Corp page', url: 'https://intranet.corp/doc/42?q=1', content: 'body text' });
+    const trow = store.get('SELECT url, content FROM activities WHERE id=?', [tid]);
+    pass('policy-title-only', trow && !trow.content && trow.url === 'https://intranet.corp/', JSON.stringify(trow));
+    pass('sensitive-window', store.insertActivity({ type: 'window', started_at: Date.now(), app_name: 'Chrome', window_title: 'InPrivate - 网上银行' }) === null);
+    pass('audit-log', pro.listAudit({ kind: 'capture' }).length >= 3);
+    store.insertActivity({ type: 'note', started_at: Date.now() - 3600e3 * 50, app_name: '速记', window_title: 'old', content: 'old note wipe' });
+    const w = pro.wipeRange(Date.now() - 3600e3 * 51, Date.now() - 3600e3 * 49);
+    pass('wipe-range', w.activities === 1, JSON.stringify(w));
+    // memory review
+    store.upsertMemory({ kind: 'preference', text: '低置信记忆待审', confidence: 0.6 });
+    const q = pro.reviewQueue('pending');
+    pass('memory-pending', q.some(m => m.text === '低置信记忆待审') && !store.listMemories().some(m => m.text === '低置信记忆待审'));
+    const pm = q.find(m => m.text === '低置信记忆待审');
+    pro.reviewMemory(pm.id, 'edit', '低置信记忆已编辑');
+    pro.reviewMemory(pm.id, 'approve');
+    pass('memory-approve', store.listMemories().some(m => m.text === '低置信记忆已编辑'));
+    // encryption roundtrip
+    const bk = path.join(USER_DATA, 't.mtbak');
+    const before = store.get('SELECT COUNT(*) c FROM activities').c;
+    pro.backup(bk, 'correct horse');
+    const head = fs.readFileSync(bk).slice(0, 5).toString();
+    pass('backup-encrypted', head === 'MTBK2' && !fs.readFileSync(bk).includes(Buffer.from('低置信记忆已编辑')), head);
+    let wrong = false; try { pro.restore(bk, 'wrong pass'); } catch (_) { wrong = true; }
+    pass('restore-wrong-pass', wrong && store.get('SELECT COUNT(*) c FROM activities').c === before);
+    store.run('DELETE FROM activities');
+    pro.restore(bk, 'correct horse');
+    pass('restore-roundtrip', store.get('SELECT COUNT(*) c FROM activities').c === before && store.searchFts('速记', 10).length >= 1);
+    // usage + budget + local-only
+    const u0 = pro.usageSummary();
+    await chatCompletion(config, [{ role: 'user', content: '你好 usage' }], { purpose: 'test' });
+    const u1 = pro.usageSummary();
+    pass('usage-recorded', JSON.stringify(u1) !== JSON.stringify(u0), JSON.stringify(u1).slice(0, 160));
+    config.privacy.localOnly = true;
+    let lo = false; try { await chatCompletion({ ...config, ai: { ...config.ai, baseUrl: 'https://api.example.com/v1' } }, [{ role: 'user', content: 'x' }]); } catch (e) { lo = /仅本地/.test(e.message); }
+    pass('local-only-block', lo);
+    config.privacy.localOnly = false;
+    store.run(`INSERT INTO llm_usage (id,ts,provider,model,purpose,prompt_tokens,completion_tokens,cost_usd,latency_ms,ok) VALUES ('b1',?, 'x','x','t',0,0,99,0,1)`, [Date.now()]);
+    config.ai.monthlyBudgetUsd = 1;
+    let bb = false; try { await chatCompletion(config, [{ role: 'user', content: 'x' }]); } catch (e) { bb = /预算/.test(e.message); }
+    pass('budget-block', bb);
+    config.ai.monthlyBudgetUsd = 0;
+    // jobs
+    let n = 0; pro.registerJob('flaky', async () => { if (n++ === 0) throw new Error('boom'); return 'ok'; });
+    const j1 = await pro.runJob('flaky', {});
+    const j2 = await pro.retryJob(j1.id);
+    pass('job-retry', !j1.ok && j2.ok && pro.listJobs().find(j => j.id === j1.id).attempts === 2);
+    // MCP JSON-RPC
+    const mcp = require('../src/mcp/server');
+    const init = await mcp.handleRpc({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+    pass('mcp-initialize', init.result && init.result.serverInfo.name === 'mindtrace');
+    const tl = await mcp.handleRpc({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+    pass('mcp-tools-list', ['search', 'get_timeline', 'get_wiki_page', 'get_memories', 'add_note', 'get_analytics'].every(n => tl.result.tools.some(t => t.name === n)));
+    await mcp.handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'add_note', arguments: { content: 'MCP独角兽笔记 zebra42' } } });
+    const sr = await mcp.handleRpc({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'search', arguments: { query: 'zebra42' } } });
+    pass('mcp-add-note-search', JSON.parse(sr.result.content[0].text).count >= 1, sr.result.content[0].text.slice(0, 120));
+    const gm = await mcp.handleRpc({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'get_memories', arguments: {} } });
+    pass('mcp-memories-active-only', !gm.result.content[0].text.includes('待审'));
+    const bad = await mcp.handleRpc({ jsonrpc: '2.0', id: 6, method: 'nope' });
+    pass('mcp-method-not-found', bad.error && bad.error.code === -32601);
+    const an = await mcp.handleRpc({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'get_analytics', arguments: {} } });
+    pass('mcp-analytics', !an.result.isError, an.result.content[0].text.slice(0, 100));
+    const wk = pro.weeklyReview();
+    pass('weekly-review', !!wk);
+    const dg = pro.diagnostics({ appVersion: 'x' });
+    pass('diagnostics-redacted', !JSON.stringify(dg).includes(config.api?.token || '@@none@@') && !JSON.stringify(dg).includes('sk-'));
+
     apiServer.stop();
     store.closeStore();
   } catch (e) {

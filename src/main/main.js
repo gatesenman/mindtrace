@@ -21,6 +21,7 @@ const collectorStatus = require('./collectorStatus');
 const workerHost = require('../worker/host');
 const wikiEngine = require('../wiki/engine');
 const mcpServer = require('../mcp/server');
+const pro = require('../pro');
 const { installProcessHandlers, appendLog, getLogPath, initLogger } = require('./logger');
 
 let mainWindow = null;
@@ -273,7 +274,7 @@ function startCollectors() {
   try {
     if (config.api?.enabled) {
       apiServer.start({ getConfig });
-      mcpServer.start({ getConfig });
+      mcpServer.start({ getConfig, hooks: { version: app.getVersion() } });
     }
   } catch (e) { appendLog('ERROR', 'start:api', e); }
   scheduleSummarize();
@@ -595,8 +596,9 @@ function registerIpc() {
 
   ipcMain.handle('summarize-today', async () => {
     try {
-      const r = await summarizer.buildDailyJournal(config);
-      return { ok: true, journal: r };
+      const j = await pro.runJob('summarize', {});
+      if (!j.ok) return { ok: false, error: j.error };
+      return { ok: true, journal: store.get(`SELECT * FROM journals ORDER BY updated_at DESC LIMIT 1`) };
     } catch (e) {
       return { ok: false, error: e.message };
     }
@@ -689,15 +691,51 @@ function registerIpc() {
     return { ok: true, id };
   });
   ipcMain.handle('build-rollup', async (_e, opts = {}) => {
-    try {
-      const level = opts.level || 'day';
-      if (level === 'hour') await wikiEngine.buildHourRollup(config, opts.key || wikiEngine.hourKey(Date.now()));
-      else if (level === 'week') await wikiEngine.buildWeekRollup(config, opts.key || wikiEngine.weekKey(Date.now()));
-      else if (level === 'month') await wikiEngine.buildMonthRollup(config, opts.key || wikiEngine.monthKey(Date.now()));
-      else await wikiEngine.buildDayRollup(config, opts.key || wikiEngine.dayKey(Date.now()));
-      return { ok: true };
-    } catch (e) { return { ok: false, error: e.message }; }
+    const j = await pro.runJob('rollup', { level: opts.level || 'day', key: opts.key });
+    return j.ok ? { ok: true } : { ok: false, error: j.error };
   });
+  // ── v2.2 pro ──
+  const safe = fn => async (...a) => { try { return await fn(...a); } catch (e) { return { ok: false, error: e.message }; } };
+  ipcMain.handle('pro-audit', (_e, o) => pro.listAudit(o || {}));
+  ipcMain.handle('pro-wipe-range', safe((_e, { from, to }) => { const r = pro.wipeRange(from, to); return { ok: true, ...r }; }));
+  ipcMain.handle('pro-get-rules', () => ({ rules: config.privacy.rules || [], sensitiveDetection: config.privacy.sensitiveDetection !== false, localOnly: !!config.privacy.localOnly }));
+  ipcMain.handle('pro-set-rules', safe((_e, o = {}) => {
+    if (Array.isArray(o.rules)) config.privacy.rules = o.rules.filter(r => r && r.match).map(r => ({ match: String(r.match), scope: r.scope === 'site' ? 'site' : 'app', mode: ['none', 'title', 'full'].includes(r.mode) ? r.mode : 'none' }));
+    if (typeof o.sensitiveDetection === 'boolean') config.privacy.sensitiveDetection = o.sensitiveDetection;
+    if (typeof o.localOnly === 'boolean') config.privacy.localOnly = o.localOnly;
+    if (typeof o.monthlyBudgetUsd === 'number') config.ai.monthlyBudgetUsd = Math.max(0, o.monthlyBudgetUsd);
+    saveConfig(config); pro.audit('privacy', 'update-rules', null, o);
+    return { ok: true };
+  }));
+  ipcMain.handle('pro-usage', () => pro.usageSummary());
+  ipcMain.handle('pro-jobs', () => pro.listJobs(50));
+  ipcMain.handle('pro-retry-job', safe((_e, id) => pro.retryJob(id)));
+  ipcMain.handle('pro-review-queue', (_e, s) => pro.reviewQueue(s || 'pending'));
+  ipcMain.handle('pro-review', safe((_e, { id, action, text }) => pro.reviewMemory(id, action, text)));
+  ipcMain.handle('pro-memory-counts', () => pro.memoryCounts());
+  ipcMain.handle('pro-analytics', (_e, o = {}) => {
+    const d = new Date(); d.setHours(0, 0, 0, 0);
+    return pro.analytics(o.from || d.getTime(), o.to || d.getTime() + 86400000);
+  });
+  ipcMain.handle('pro-weekly', () => pro.weeklyReview());
+  ipcMain.handle('pro-backup', safe(async (_e, { passphrase } = {}) => {
+    const r = await dialog.showSaveDialog(mainWindow, { title: '导出加密备份', defaultPath: `MindTrace-${new Date().toISOString().slice(0, 10)}.mtbak`, filters: [{ name: 'MindTrace 备份', extensions: ['mtbak'] }] });
+    if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+    return { ok: true, ...pro.backup(r.filePath, passphrase) };
+  }));
+  ipcMain.handle('pro-restore', safe(async (_e, { passphrase } = {}) => {
+    const r = await dialog.showOpenDialog(mainWindow, { title: '从备份恢复', properties: ['openFile'], filters: [{ name: 'MindTrace 备份', extensions: ['mtbak'] }] });
+    if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
+    return { ok: true, ...pro.restore(r.filePaths[0], passphrase) };
+  }));
+  ipcMain.handle('pro-diagnostics', safe(async () => {
+    const r = await dialog.showSaveDialog(mainWindow, { title: '导出诊断包', defaultPath: `MindTrace-diagnostics-${Date.now()}.json` });
+    if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+    const d = pro.diagnostics({ appVersion: app.getVersion(), collectorStatus: collectorStatus.getAll(), logPath: getLogPath() });
+    fs.writeFileSync(r.filePath, JSON.stringify(d, null, 2));
+    return { ok: true, path: r.filePath };
+  }));
+  ipcMain.handle('pro-mcp-info', () => ({ url: `http://127.0.0.1:${(config.api?.port || 17321) + 1}/mcp`, token: config.api?.token, enabled: !!config.api?.enabled, tools: mcpServer.TOOLS.map(t => ({ name: t.name, description: t.description })) }));
 
   ipcMain.handle('get-presets', () => PRESETS);
   ipcMain.handle('seed-demo', () => { seedDemoData(); return { ok: true }; });
@@ -735,6 +773,18 @@ app.whenReady().then(async () => {
     saveConfig(config);
   }
   await store.initStore();
+  pro.init({ getConfig: () => config });
+  store.setInsertPolicy(row => pro.applyPolicy(row));
+  store.setMemoryThreshold(config.wiki?.memoryMinConfidence ?? 0.75);
+  pro.registerJob('summarize', () => summarizer.buildDailyJournal(config).then(r => ({ id: r && r.id })));
+  pro.registerJob('rollup', async (o = {}) => {
+    const level = o.level || 'day';
+    if (level === 'hour') await wikiEngine.buildHourRollup(config, o.key || wikiEngine.hourKey(Date.now()));
+    else if (level === 'week') await wikiEngine.buildWeekRollup(config, o.key || wikiEngine.weekKey(Date.now()));
+    else if (level === 'month') await wikiEngine.buildMonthRollup(config, o.key || wikiEngine.monthKey(Date.now()));
+    else await wikiEngine.buildDayRollup(config, o.key || wikiEngine.dayKey(Date.now()));
+    return { level };
+  });
   try {
     store.pruneOldData({
       activityRetainDays: config.privacy?.activityRetainDays || 90,
