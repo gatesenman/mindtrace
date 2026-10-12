@@ -772,3 +772,5 @@ table.data th { white-space: nowrap; }
 #jobs-body td:nth-child(2), #jobs-body td:nth-child(5), #rules-body td:last-child { white-space: nowrap; }
 .mem-head { flex-wrap: wrap; }
 .mem-head h3 { white-space: nowrap; }
+.grid.two > * { min-width: 0; }
+input[type="datetime-local"].input { width: 100%; min-width: 0; }
