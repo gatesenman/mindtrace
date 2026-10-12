@@ -19,7 +19,7 @@
     "test:v23": "electron tests/v23-acceptance.js --no-sandbox",
     "test:zhtime": "node tests/zhtime.test.js",
     "test:ai": "node tests/ai-client.js",
-    "test:noise": "node tests/noise.js && electron tests/noise-integration.js --no-sandbox"
+    "test:noise": "node tests/noise.js && node tests/timeline-feed.js && electron tests/noise-integration.js --no-sandbox"
   },
   "build": {
     "appId": "com.mindtrace.app",

@@ -206,7 +206,7 @@
     scrubData = { from, bins, items };
     const max = Math.max(1, ...bins.map(b => b.n));
     sc.classList.remove('hidden');
-    sc.innerHTML = `<div class="scrub-head"><b>今日活动密度</b><span class="tiny muted" id="scrub-hint">悬停查看时段摘要 · 拖动框选时段</span><span class="scrub-legend">每格 15 分钟 · 平方根刻度 · 峰值 ${max} 条 · 已隐藏低价值事件</span><span class="scrub-actions hidden" id="scrub-actions"><span class="tiny" id="scrub-range"></span><button class="btn sm" id="scrub-ask">问这段时间</button><button class="btn sm ghost" id="scrub-clear">清除选择</button></span></div>
+    sc.innerHTML = `<div class="scrub-head"><b>今日活动密度</b><span class="tiny muted" id="scrub-hint">悬停查看数量 · 单击跳到该小时 · 拖动框选时段</span><span class="scrub-legend">每格 15 分钟 · 平方根刻度 · 峰值 ${max} 条 · 已隐藏低价值事件</span><span class="scrub-actions hidden" id="scrub-actions"><span class="tiny" id="scrub-range"></span><button class="btn sm" id="scrub-ask">问这段时间</button><button class="btn sm ghost" id="scrub-clear">清除选择</button></span></div>
       <div class="scrub-wrap"><div class="scrub-y"><span style="top:0">${max}</span><span style="top:50%">${Math.max(1, Math.round(Math.sqrt(max) ** 2 / 4))}</span><span style="top:100%">0</span></div>
       <div class="scrub-track tall" id="scrub-track">${bins.map((b, i) => `<i style="--h:${b.n ? Math.max(8, Math.round(Math.sqrt(b.n / max) * 100)) : 0}%" data-i="${i}" class="${b.n ? '' : 'z'}" title="${pad(Math.floor(i / 4))}:${pad((i % 4) * 15)} · ${b.n} 条"></i>`).join('')}<div class="scrub-sel hidden" id="scrub-sel"></div></div></div>
       <div class="scrub-axis pad">${[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => `<span style="left:${h / 24 * 100}%">${pad(h)}:00</span>`).join('')}</div>
@@ -229,6 +229,7 @@
     window.addEventListener('mouseup', function up(e) {
       if (dragA == null) return;
       const b = idxAt(e.clientX); const a = Math.min(dragA, b), z = Math.max(dragA, b); dragA = null;
+      if (a === z) { $('scrub-sel').classList.add('hidden'); if (window.TLFeed) window.TLFeed.jumpToHour(Math.floor(a / 4)); return; } // 单击 → 跳到该小时
       applySel(a, z);
     });
     $('scrub-clear').onclick = () => { sel = null; $('scrub-sel').classList.add('hidden'); $('scrub-actions').classList.add('hidden'); $('scrub-hint').classList.remove('hidden'); window.loadTimeline({ _fromScrub: true, day }); };

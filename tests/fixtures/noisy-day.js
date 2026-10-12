@@ -10,7 +10,7 @@ module.exports = function noisyDay(base) {
   add({ t: 9 * 60 * M + 49 * M, type: 'window', app_name: 'Search', process_name: 'SearchHost.exe', window_title: '搜索', d: 4 * S });
   add({ t: 9 * 60 * M + 50 * M, type: 'window', app_name: 'VS Code', process_name: 'Code.exe', window_title: 'noise.js — mindtrace', d: 35 * M });
   // 微信连切（同应用多窗口）
-  const wx = [['微信', 3 * M], ['图片和视频', 40 * S], ['微信', 5 * M], ['文件传输助手', 2 * M], ['微信', 0]];
+  const wx = [['微信', 1 * M], ['张三', 3 * M], ['图片和视频', 40 * S], ['2.3 发布群', 5 * M], ['李四', 2 * M], ['微信', 0]];
   let t = 15 * 60 * M;
   for (const [title, d] of wx) { add({ t, type: 'window', app_name: '微信', process_name: 'Weixin.exe', window_title: title, d: d || 1500 }); t += (d || 1500) + 2 * S; }
   add({ t, type: 'window', app_name: '资源管理器', process_name: 'explorer.exe', window_title: '任务切换', d: 0 });

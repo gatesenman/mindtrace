@@ -416,6 +416,7 @@ async function loadTimeline(opts = {}) {
     const r = await window.mindtrace.getById('activity', opts.focusId);
     if (r.ok && r.item) items.unshift(r.item);
   }
+  if (window.TLFeed) { window.TLFeed.render(items, opts); highlightId = null; return; }
   $('timeline-list').innerHTML = items.map(a => {
     if (a.type === 'session') return sessionHtml(a);
     const demo = isDemoMeta(a.meta);

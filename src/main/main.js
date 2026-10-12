@@ -971,6 +971,10 @@ function registerIpc() {
   ipcMain.handle('pro-audit', (_e, o) => pro.listAudit(o || {}));
   ipcMain.handle('pro-wipe-range', safe((_e, { from, to }) => { const r = pro.wipeRange(from, to); const c = v23.forget.cascadeRange(from, to); store.persist(true); return { ok: true, ...r, derived: c }; }));
   registerV23Ipc();
+  require('./timelineIpc').register({ store, v23, getConfig: () => config, setConfig: (patch) => {
+    const merge = (a, b) => { for (const k of Object.keys(b || {})) { if (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k])) a[k] = merge(a[k] || {}, b[k]); else a[k] = b[k]; } return a; };
+    config = merge(config, patch); saveConfig(config);
+  } });
   ipcMain.handle('pro-get-rules', () => ({ rules: config.privacy.rules || [], sensitiveDetection: config.privacy.sensitiveDetection !== false, localOnly: !!config.privacy.localOnly }));
   ipcMain.handle('pro-set-rules', safe((_e, o = {}) => {
     if (Array.isArray(o.rules)) config.privacy.rules = o.rules.filter(r => r && r.match).map(r => ({ match: String(r.match), scope: r.scope === 'site' ? 'site' : 'app', mode: ['none', 'title', 'full'].includes(r.mode) ? r.mode : 'none' }));

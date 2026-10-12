@@ -36,11 +36,11 @@ $sb = New-Object System.Text.StringBuilder 1024
 $procId = 0
 [void][W]::GetWindowThreadProcessId($h, [ref]$procId)
 $p = Get-Process -Id $procId -ErrorAction SilentlyContinue
-@{ title = $sb.ToString(); process = $(if($p){$p.ProcessName}else{''}); app = $(if($p){$p.MainModule.FileVersionInfo.FileDescription}else{''}); pid = $procId } | ConvertTo-Json -Compress
+@{ title = $sb.ToString(); process = $(if($p){$p.ProcessName}else{''}); app = $(if($p){$p.MainModule.FileVersionInfo.FileDescription}else{''}); pid = $procId; exe = $(if($p){$p.Path}else{''}) } | ConvertTo-Json -Compress
 `;
       const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ' + script], { timeout: 5000, windowsHide: true, encoding: 'utf8' });
       const j = JSON.parse(stdout.trim() || '{}');
-      return { title: j.title || '', process: j.process || '', app: j.app || j.process || '', pid: j.pid };
+      return { title: j.title || '', process: j.process || '', app: j.app || j.process || '', pid: j.pid, exe: j.exe || '' };
     }
     if (isLinux()) {
       try {
@@ -182,7 +182,7 @@ async function tick() {
       app_name: fg.app || fg.process,
       process_name: fg.process,
       window_title: fg.title,
-      meta: { pid: fg.pid }
+      meta: { pid: fg.pid, exe: fg.exe || undefined }
     });
     current = id ? { id, app: fg.app, process: fg.process, title: fg.title, startedAt: now } : null;
     if (!current) { status.ok('window', '已忽略系统切换'); return; }

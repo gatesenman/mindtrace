@@ -20,7 +20,7 @@ t('60s 内重复复制去重', f.filter(r => /会议纪要/.test(r.content || ''
 t('过滤后无噪声', !f.some(r => /任务切换|purpose|grokweb|锁屏/.test(`${r.window_title}${r.content}`)), `${rows.length} → ${f.length}`);
 const s = noise.sessionize(f);
 const wx = s.find(x => x.type === 'session' && x.app_name === '微信');
-t('微信连切合并为会话', !!wx && wx.windowCount === 3 && wx.items.length >= 3, wx ? `微信 · ${wx.windowCount} 个窗口 · ${Math.round(wx.total_ms / 60000)}m` : 'none');
+t('微信连切合并为会话', !!wx && wx.windowCount >= 4 && wx.items.length >= 4, wx ? `微信 · ${wx.windowCount} 个窗口 · ${Math.round(wx.total_ms / 60000)}m` : 'none');
 t('中间切到其他应用则不合并', s.filter(x => x.app_name === 'VS Code' && x.type === 'window').length === 2);
 t('desc 顺序保持', (() => { const d = noise.sessionize(noise.filter([...rows].reverse(), { now })); return d[0].started_at >= d[d.length - 1].started_at; })());
 const all = noise.filter(rows, { hideLow: false, now });

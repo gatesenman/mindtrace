@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('mindtrace', {
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
   openPath: (p) => ipcRenderer.invoke('open-path', p),
   testAi: (form) => ipcRenderer.invoke('test-ai', form),
+  tl: (ch, arg) => /^[a-z-]+$/.test(ch) ? ipcRenderer.invoke('tl-' + ch, arg) : Promise.reject(new Error('bad channel')),
   listModels: (form) => ipcRenderer.invoke('list-models', form),
   captureNow: () => ipcRenderer.invoke('capture-now'),
   getPresets: () => ipcRenderer.invoke('get-presets'),
