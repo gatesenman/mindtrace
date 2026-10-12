@@ -128,12 +128,47 @@ function showObStep(n) {
   [...$('ob-steps').children].forEach((el, idx) => el.classList.toggle('on', idx < n));
 }
 
+
+/* ── AI 表单：模型 ID 下拉、测试连接（2.3.1） ── */
+function aiForm(pfx) {
+  const g = (id) => ($(pfx + id) ? $(pfx + id).value : '');
+  return { provider: g('preset'), baseUrl: g('base').trim(), model: g('model').trim(), visionModel: g('vision').trim(), apiKey: g('key').trim() };
+}
+function fillModelList(pfx, models) {
+  const dl = $(pfx + 'model-list'); if (!dl) return;
+  const p = presets[$(pfx + 'preset')?.value] || {};
+  const ids = models && models.length ? models.map(m => typeof m === 'string' ? { id: m } : m) : (p.models || (p.model ? [p.model] : [])).map(id => ({ id }));
+  dl.innerHTML = ids.map(m => `<option value="${escapeHtml(m.id)}">${m.name && m.name !== m.id ? escapeHtml(m.name) : ''}</option>`).join('');
+}
+function applyAiPreset(pfx) {
+  const p = presets[$(pfx + 'preset').value];
+  if (p?.baseUrl) $(pfx + 'base').value = p.baseUrl;
+  if (p?.model) $(pfx + 'model').value = p.model;
+  if ($(pfx + 'vision')) { $(pfx + 'vision').value = ''; $(pfx + 'vision').placeholder = p?.visionHint ? '留空（该服务对话模型默认不用于识图）' : 'gpt-4o / qwen-vl-plus / llava（可留空）'; }
+  fillModelList(pfx, null);
+}
+async function runAiTest(pfx, box) {
+  const form = aiForm(pfx);
+  box.className = 'inline-status busy'; box.textContent = '正在连接…';
+  const r = await window.mindtrace.testAi(form);
+  if (r.models) fillModelList(pfx, r.models);
+  if (r.mapped && r.model) $(pfx + 'model').value = r.model;
+  const lines = [];
+  if (r.ok) lines.push(`✓ 连接成功 · ${r.latency}ms · 模型 ${r.model}` + (r.mapped ? `（已将「${r.inputModel}」更正为模型 ID）` : ''));
+  else lines.push(`✗ 连接失败：${r.error}`);
+  if (r.ok && r.vision) lines.push((r.vision.status === 'ok' ? '✓ ' : r.vision.status === 'warn' ? '⚠ ' : '· ') + r.vision.message);
+  box.className = 'inline-status ' + (!r.ok ? 'err' : (r.vision && r.vision.status === 'warn' ? 'warn' : 'ok'));
+  box.textContent = lines.join('\n'); box.style.whiteSpace = 'pre-line';
+  return r;
+}
+
 async function refreshState() {
   state = await window.mindtrace.getState();
   presets = await window.mindtrace.getPresets();
   applyConfigToForm();
   fillPresetSelect($('ai-preset'), state.config.ai.provider);
   fillPresetSelect($('ob-ai-preset'), state.config.ai.provider);
+  fillModelList('ai-', null); fillModelList('ob-ai-', null);
   updateStatus();
   if (!state.config.onboardingCompleted) {
     $('onboarding').classList.remove('hidden');
@@ -613,21 +648,10 @@ function bind() {
     showObStep(4);
   };
   $('ob-back4').onclick = () => showObStep(3);
-  $('ob-ai-preset').onchange = () => {
-    const p = presets[$('ob-ai-preset').value];
-    if (p?.baseUrl) $('ob-ai-base').value = p.baseUrl;
-    if (p?.model) $('ob-ai-model').value = p.model;
-  };
+  $('ob-ai-preset').onchange = () => applyAiPreset('ob-ai-');
   $('ob-test').onclick = async () => {
-    const key = $('ob-ai-key').value.trim();
-    if (key) await window.mindtrace.setConfig({ ai: { apiKey: key, baseUrl: $('ob-ai-base').value.trim(), model: $('ob-ai-model').value.trim(), provider: $('ob-ai-preset').value } });
-    const box = $('ob-ai-result');
-    box.className = 'inline-status busy'; box.textContent = '正在连接…';
-    const t0 = performance.now();
-    const r = await window.mindtrace.testAi();
-    const ms = Math.round(performance.now() - t0);
-    box.className = 'inline-status ' + (r.ok ? 'ok' : 'err');
-    box.textContent = r.ok ? `✓ 连接成功 · 延迟 ${ms}ms · ${$('ob-ai-model').value.trim() || '默认模型'}` : `✗ 连接失败：${r.error}（请检查 Base URL、模型名与 Key）`;
+    const r = await runAiTest('ob-ai-', $('ob-ai-result'));
+    if (r.ok) { const f = aiForm('ob-ai-'); const patch = { ai: { provider: f.provider, baseUrl: f.baseUrl, model: r.model, visionModel: f.visionModel } }; if (f.apiKey) patch.ai.apiKey = f.apiKey; await window.mindtrace.setConfig(patch); }
   };
   $('ob-finish').onclick = async () => {
     await window.mindtrace.setConfig({
@@ -740,11 +764,7 @@ function bind() {
     const r = await window.mindtrace.captureNow();
     toast(r.ok ? '截屏已保存' : '截屏失败（当前环境可能受限）');
   };
-  $('ai-preset').onchange = () => {
-    const p = presets[$('ai-preset').value];
-    if (p?.baseUrl) $('ai-base').value = p.baseUrl;
-    if (p?.model) $('ai-model').value = p.model;
-  };
+  $('ai-preset').onchange = () => applyAiPreset('ai-');
   $('btn-save-ai').onclick = async () => {
     const key = $('ai-key').value.trim();
     const patch = {
@@ -762,11 +782,7 @@ function bind() {
     await refreshState();
     toast('AI 设置已保存');
   };
-  $('btn-test-ai').onclick = async () => {
-    $('ai-test-result').textContent = '测试中…';
-    const r = await window.mindtrace.testAi();
-    $('ai-test-result').textContent = r.ok ? r.content : ('错误：' + r.error);
-  };
+  $('btn-test-ai').onclick = () => runAiTest('ai-', $('ai-test-result'));
   $('btn-save-api').onclick = async () => {
     await window.mindtrace.setConfig({ api: { enabled: $('api-enabled').checked, port: Number($('api-port').value) || 17321 } });
     await refreshState();

@@ -123,6 +123,8 @@ function assertEndpointAllowed(baseUrl, cfg = getConfig()) {
 /* ───────────── LLM usage & budget ───────────── */
 // Approximate USD per 1M tokens (input, output). Unknown → 0.
 const PRICES = {
+  // DeepSeek 官方价（2026-09，非高峰，缓存未命中）；高峰时段翻倍
+  'deepseek-flash': [0.15, 0.6], 'deepseek-v4-pro': [0.66, 1.98], 'deepseek-v4-flash': [0.15, 0.6],
   'deepseek-chat': [0.27, 1.1], 'deepseek-reasoner': [0.55, 2.19],
   'gpt-4o-mini': [0.15, 0.6], 'gpt-4o': [2.5, 10],
   'qwen-plus': [0.4, 1.2], 'moonshot-v1-8k': [1.7, 1.7]

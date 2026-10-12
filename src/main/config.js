@@ -54,7 +54,7 @@ const DEFAULTS = {
     provider: 'deepseek',
     baseUrl: 'https://api.deepseek.com/v1',
     apiKey: '',
-    model: 'deepseek-chat',
+    model: 'deepseek-flash',
     visionModel: '',
     temperature: 0.3,
     autoSummarize: true,
@@ -72,7 +72,7 @@ const DEFAULTS = {
 };
 
 const PRESETS = {
-  deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', label: 'DeepSeek' },
+  deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-flash', models: ['deepseek-flash', 'deepseek-v4-pro'], label: 'DeepSeek', visionHint: 'DeepSeek 对话模型默认不用于识图；如需识图请填写多模态模型，测试连接会单独校验。' },
   qwen: { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus', label: '通义千问' },
   kimi: { baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', label: 'Kimi' },
   openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', label: 'OpenAI' },
@@ -89,7 +89,12 @@ function loadConfig() {
     const p = getConfigPath();
     if (fs.existsSync(p)) {
       const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
-      return deepMerge(JSON.parse(JSON.stringify(DEFAULTS)), raw);
+      const cfg = deepMerge(JSON.parse(JSON.stringify(DEFAULTS)), raw);
+      // 2.3.1：deepseek-chat / deepseek-reasoner 已于 2026-07 下线 → 迁移到 deepseek-flash
+      if (cfg.ai && /deepseek\.com/.test(cfg.ai.baseUrl || '') && /^deepseek-(chat|reasoner)$/.test(String(cfg.ai.model || '').trim())) cfg.ai.model = 'deepseek-flash';
+      if (cfg.ai && typeof cfg.ai.model === 'string') cfg.ai.model = cfg.ai.model.trim();
+      if (cfg.ai && typeof cfg.ai.visionModel === 'string') cfg.ai.visionModel = cfg.ai.visionModel.trim();
+      return cfg;
     }
   } catch (e) {
     console.error('loadConfig', e);

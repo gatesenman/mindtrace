@@ -891,3 +891,4 @@ table.collectors td { vertical-align: middle; }
 .grid.two.single { grid-template-columns: 1fr; }
 #wiki-body.md { white-space: normal; }
 .timeline.rollups::before, .timeline.rollups .tl-item::before { display: none !important; }
+.inline-status.warn { color: #B45309; } [data-theme="dark"] .inline-status.warn { color: #FBBF24; }

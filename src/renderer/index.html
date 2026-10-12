@@ -408,10 +408,10 @@
           <div class="field"><label>预设</label><select id="ai-preset" class="input"></select></div>
           <div class="grid two">
             <div class="field"><label>Base URL</label><input id="ai-base" class="input" placeholder="https://api.deepseek.com/v1" /></div>
-            <div class="field"><label>模型</label><input id="ai-model" class="input" placeholder="deepseek-chat" /></div>
+            <div class="field"><label>模型</label><input id="ai-model" class="input" list="ai-model-list" autocomplete="off" spellcheck="false" placeholder="deepseek-flash" /><datalist id="ai-model-list"></datalist></div>
           </div>
           <div class="field"><label>API Key</label><input id="ai-key" class="input" type="password" placeholder="sk-…" /></div>
-          <div class="field"><label>视觉模型（截屏 OCR / 识图，可空）</label><input id="ai-vision" class="input" placeholder="gpt-4o / qwen-vl-plus / llava" />
+          <div class="field"><label>视觉模型（截屏 OCR / 识图，可空）</label><input id="ai-vision" class="input" autocomplete="off" spellcheck="false" placeholder="gpt-4o / qwen-vl-plus / llava（可留空）" />
             <p class="hint">须为支持图像输入的多模态模型。未填写时截屏照常保存，跳过识图。</p>
           </div>
           <div class="grid two">
@@ -422,7 +422,7 @@
             <button class="btn" id="btn-test-ai">测试连接</button>
             <button class="btn primary" id="btn-save-ai">保存 AI 设置</button>
           </div>
-          <pre id="ai-test-result" class="result-box muted"></pre>
+          <div id="ai-test-result" class="inline-status" role="status"></div>
         </div>
         <div class="card settings-group">
           <div class="group-title">集成</div>
@@ -497,10 +497,10 @@
           <div class="field"><label>预设</label><select id="ob-ai-preset" class="input"></select></div>
           <div class="grid two">
             <div class="field"><label>Base URL</label><input id="ob-ai-base" class="input" /></div>
-            <div class="field"><label>模型</label><input id="ob-ai-model" class="input" /></div>
+            <div class="field"><label>模型</label><input id="ob-ai-model" class="input" list="ob-ai-model-list" autocomplete="off" spellcheck="false" placeholder="deepseek-flash" /><datalist id="ob-ai-model-list"></datalist></div>
           </div>
           <div class="field"><label>API Key</label><input id="ob-ai-key" class="input" type="password" placeholder="sk-…" /></div>
-          <div class="field"><label>视觉模型（截屏 OCR / 识图，可空）</label><input id="ob-ai-vision" class="input" placeholder="gpt-4o / qwen-vl-plus / llava" />
+          <div class="field"><label>视觉模型（截屏 OCR / 识图，可空）</label><input id="ob-ai-vision" class="input" autocomplete="off" spellcheck="false" placeholder="gpt-4o / qwen-vl-plus / llava（可留空）" />
             <p class="hint">截屏识图需要<strong>多模态视觉模型</strong>。普通对话模型无法看图；留空时截屏仍会保存。</p>
           </div>
           <div class="row gap">

@@ -613,13 +613,13 @@ function seedProDemo(now) {
     [now - 35 * M, 'mcp', 'call', 'search', '{"query":"知迹 发布","示例":true}'],
     [now - 48 * M, 'capture', 'title-only', 'Chrome', '{"reason":"rule:site:intranet.corp","示例":true}'],
     [now - 70 * M, 'mcp', 'call', 'get_wiki_page', '{"slug":"day-today","示例":true}'],
-    [now - 2 * H, 'llm', 'call', 'deepseek-chat', '{"purpose":"rollup","示例":true}'],
+    [now - 2 * H, 'llm', 'call', 'deepseek-flash', '{"purpose":"rollup","示例":true}'],
     [now - 3 * H, 'capture', 'blocked', 'Edge InPrivate', '{"reason":"sensitive-window","示例":true}'],
     [now - 5 * H, 'backup', 'encrypted', 'D:/备份/MindTrace.mtbak', '{"activities":412,"示例":true}'],
     [now - 26 * H, 'wipe', 'range', '昨日 12:00~12:15', '{"activities":6,"示例":true}']
   ];
   aud.forEach((r, i) => q(`INSERT OR REPLACE INTO audit_log (id,ts,kind,action,target,detail) VALUES (?,?,?,?,?,?)`, ['demo-a' + i, ...r]));
-  const use = [['deepseek-chat', 'summarize', 3200, 820, 0.0018, 2100, 1], ['deepseek-chat', 'rollup', 5400, 1300, 0.0029, 2900, 1], ['deepseek-chat', 'chat', 1800, 640, 0.0012, 1600, 1], ['qwen-vl-plus', 'vision', 2100, 300, 0.0012, 3400, 1], ['deepseek-chat', 'rollup', 0, 0, 0, 30000, 0]];
+  const use = [['deepseek-flash', 'summarize', 3200, 820, 0.0018, 2100, 1], ['deepseek-flash', 'rollup', 5400, 1300, 0.0029, 2900, 1], ['deepseek-flash', 'chat', 1800, 640, 0.0012, 1600, 1], ['qwen-vl-plus', 'vision', 2100, 300, 0.0012, 3400, 1], ['deepseek-flash', 'rollup', 0, 0, 0, 30000, 0]];
   for (let d = 0; d < 9; d++) use.forEach((u, i) => q(`INSERT OR REPLACE INTO llm_usage (id,ts,provider,model,purpose,prompt_tokens,completion_tokens,cost_usd,latency_ms,ok,error) VALUES (?,?,?,?,?,?,?,?,?,?,?)`, [`demo-u${d}-${i}`, now - d * 20 * H - i * M, 'deepseek', u[0], u[1], u[2], u[3], u[4] * 3, u[5], u[6], u[6] ? null : '超时（示例）']));
   const jobs = [['rollup', 'done', 1, now - 15 * M, null], ['summarize', 'done', 1, now - 62 * M, null], ['rollup', 'failed', 2, now - 2 * H, 'AI API 429: rate limited（示例）'], ['rollup', 'done', 1, now - 3 * H, null], ['summarize', 'done', 2, now - 6 * H, null]];
   jobs.forEach((j, i) => q(`INSERT OR REPLACE INTO jobs (id,kind,status,params,attempts,created_at,started_at,finished_at,error) VALUES (?,?,?,?,?,?,?,?,?)`, ['demo-j' + i, j[0], j[1], JSON.stringify({ level: 'hour', demo: true }), j[2], j[3], j[3], j[3] + 4000, j[4]]));
@@ -914,15 +914,15 @@ function registerIpc() {
     return { ok: true };
   });
 
-  ipcMain.handle('test-ai', async () => {
-    try {
-      const { content } = await chatCompletion(config, [
-        { role: 'user', content: '请用一句话介绍你自己，并说明你可以如何帮助整理个人数字资产。' }
-      ], { max_tokens: 200 });
-      return { ok: true, content };
-    } catch (e) {
-      return { ok: false, error: e.message };
-    }
+  ipcMain.handle('test-ai', async (_e, form) => {
+    try { return await require('../ai/client').testConnection(config, form || {}); }
+    catch (e) { return { ok: false, error: e.message }; }
+  });
+  ipcMain.handle('list-models', async (_e, form = {}) => {
+    const ai = { ...config.ai };
+    if (form.baseUrl) ai.baseUrl = String(form.baseUrl).trim();
+    if (form.apiKey && !String(form.apiKey).startsWith('••••')) ai.apiKey = String(form.apiKey).trim();
+    return (await require('../ai/client').listModels({ ...config, ai })) || null;
   });
 
   ipcMain.handle('capture-now', async () => {

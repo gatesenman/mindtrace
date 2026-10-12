@@ -148,7 +148,7 @@ npm run build:win
 
 | 预设 | Base URL（参考） | 推荐模型 |
 |------|------------------|----------|
-| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
+| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-flash`（或 `deepseek-v4-pro`；填模型 ID，不是显示名） |
 | 通义千问 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus` |
 | Kimi | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
