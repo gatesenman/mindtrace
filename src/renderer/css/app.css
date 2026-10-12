@@ -889,3 +889,5 @@ table.collectors td { vertical-align: middle; }
 }
 [data-theme="dark"] .toast-action, body.theme-dark .toast-action { color: #2F5AD4; }
 .grid.two.single { grid-template-columns: 1fr; }
+#wiki-body.md { white-space: normal; }
+.timeline.rollups::before, .timeline.rollups .tl-item::before { display: none !important; }

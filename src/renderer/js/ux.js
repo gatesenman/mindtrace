@@ -191,6 +191,7 @@
   const _loadTimeline = window.loadTimeline;
   window.loadTimeline = async function (opts = {}) {
     await _loadTimeline(opts);
+    $('timeline-list').classList.toggle('rollups', timelineZoom !== 'day' && !opts.forceDay);
     const sc = $('tl-scrubber');
     if (timelineZoom !== 'day' && !opts.forceDay) { sc.classList.add('hidden'); return; }
     if (!opts._fromScrub) { sel = null; await renderScrubber(opts.day); }
@@ -275,7 +276,7 @@
     const p = wikiPages.find(x => norm(x.title) === t);
     const mentions = wikiPages.filter(x => (x.body_md || '').includes(`[[${t}]]`));
     const KIND = { person: '人物', project: '项目', topic: '主题', time: '时间卷' };
-    const snippet = p ? (p.body_md || '').replace(/^##.*\n+/, '').replace(/[#*>`\[\]]/g, '').slice(0, 120) : '尚未建立页面，生成日卷后可能自动创建。';
+    const snippet = p ? (p.body_md || '').replace(/^##.*\n+/, '').replace(/\n+-\s*/g, ' · ').replace(/^-\s*/, '').replace(/[#*>`\[\]]/g, '').slice(0, 120) : '尚未建立页面，生成日卷后可能自动创建。';
     card.innerHTML = `<div class="hc-head"><b>${esc(t)}</b>${p ? `<span class="tag-pill">${KIND[p.kind] || p.kind}</span>` : '<span class="tag-pill">未创建</span>'}${p && /^【示例】/.test(p.title) ? '<span class="demo-tag">示例</span>' : ''}</div>
       <div class="hc-body">${esc(snippet)}</div>
       <div class="hc-meta tiny muted">被 ${mentions.length} 个页面提及${p ? ` · 更新于 ${new Date(p.updated_at).toLocaleDateString('zh-CN')}` : ''}</div>
