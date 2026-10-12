@@ -18,6 +18,7 @@
   const _show = window.showView;
   window.showView = function (name) {
     _show(name);
+    const m = document.querySelector('.main'); if (m) m.scrollTo({ top: 0, behavior: 'instant' });
     if (name === 'insights') loadInsights();
     if (name === 'collect') loadPrivacy();
     if (name === 'ai') loadSettingsPro();

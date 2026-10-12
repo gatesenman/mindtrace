@@ -1,4 +1,4 @@
-# 知迹 MindTrace 2.1
+# 知迹 MindTrace 2.2
 
 把每天散落在浏览器、IDE、文档、下载、截屏和各个窗口里的操作，**经你授权后**整理成可复用的个人数字资产，并沉淀为 **LLM 维护的 Wiki + 记忆库**。
 
@@ -63,6 +63,23 @@ npm run build:win
 | MCP Server | 默认 `api.port + 1`，工具发现与读写 Wiki/记忆/时间线 |
 
 ---
+
+## 2.2 专业版能力
+
+| 能力 | 说明 |
+|---|---|
+| 隐私规则引擎 | 按应用/网站设置「不采集 / 仅标题 / 完整」；自动识别密码管理器、网银、无痕窗口、登录页；全部拦截写入 **审计日志** |
+| 按时间范围清除 | 采集中心一键清除最近 15 分钟 / 1 小时 / 24 小时或自定义区间 |
+| 仅本地模式 | 开启后只允许调用 127.0.0.1 上的模型（如 Ollama） |
+| 加密备份 | `.mtbak` 单文件，AES-256-GCM + scrypt；口令错误时不改动现有数据 |
+| 记忆审核 | 低于置信阈值的记忆进入「待审」，通过后才对问答与 MCP 可见 |
+| 用量与预算 | 按模型统计 Tokens / 费用 / 耗时 / 失败率；月度预算超限自动停用 |
+| 任务队列 | 摘要、汇总卷作为任务入队，失败可重试 |
+| 洞察 | 深度工作分、专注会话（≥25 分钟）、上下文切换、AFK、应用/项目分配、本周回顾 |
+| 标准 MCP | JSON-RPC 2.0（`initialize` / `tools/list` / `tools/call`），设置页提供 Cursor / Claude Desktop 配置 |
+| 诊断包 | 导出版本、采集器状态、表规模与日志，密钥已脱敏 |
+
+设计与竞品对标见 `mindtrace-design/PRD-2.2.md`。
 
 ## 首次授权（必读）
 
@@ -155,7 +172,26 @@ Header：`Authorization: Bearer <Token>`
 | POST | `/cluster-topics` | 主题聚类 |
 | GET | `/mcp/tools` | 工具清单（轻量发现） |
 
-MCP（独立端口）提供 Wiki / 记忆 / 时间线 / 搜索等工具，供 Cursor 等客户端接入。
+### MCP（标准 JSON-RPC 2.0，端口 17322）
+
+端点 `POST http://127.0.0.1:17322/mcp`，方法 `initialize`、`tools/list`、`tools/call`、`ping`。工具：`search`、`get_timeline`、`get_wiki_page`、`list_wiki_pages`、`get_memories`（仅已审核）、`get_rollups`、`get_analytics`、`add_note`。旧接口 `GET /mcp/tools`、`POST /mcp/call` 仍然保留。
+
+Cursor（`~/.cursor/mcp.json`）：
+
+```json
+{ "mcpServers": { "mindtrace": { "url": "http://127.0.0.1:17322/mcp", "headers": { "Authorization": "Bearer <token>" } } } }
+```
+
+Claude Desktop：
+
+```json
+{ "mcpServers": { "mindtrace": { "command": "npx", "args": ["-y", "mcp-remote", "http://127.0.0.1:17322/mcp", "--header", "Authorization:Bearer <token>"] } } }
+```
+
+```bash
+curl -s http://127.0.0.1:17322/mcp -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":"发布"}}}'
+```
 
 ```bash
 curl -s http://127.0.0.1:17321/health -H "Authorization: Bearer <token>"

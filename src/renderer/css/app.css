@@ -766,3 +766,9 @@ code { font-family: var(--font-mono); font-size: 12px; }
 .mem-actions { display: flex; gap: 6px; margin-top: 6px; }
 #mem-tabs .chip { height: 24px; font-size: 11.5px; padding: 0 8px; }
 #mem-tabs .chip b { font-weight: 600; margin-left: 2px; }
+
+.btn { white-space: nowrap; }
+table.data th { white-space: nowrap; }
+#jobs-body td:nth-child(2), #jobs-body td:nth-child(5), #rules-body td:last-child { white-space: nowrap; }
+.mem-head { flex-wrap: wrap; }
+.mem-head h3 { white-space: nowrap; }

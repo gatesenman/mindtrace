@@ -239,7 +239,7 @@
             <div id="wiki-body" class="doc-body muted">选择左侧页面查看。Wiki 以文档排版呈现时间卷与实体页。</div>
           </div>
           <div class="card wiki-aside">
-            <div class="card-head" style="margin-bottom:6px"><h3 style="margin:0">记忆</h3><div class="chips" id="mem-tabs"><button class="chip active" data-mstatus="active">生效 <b id="mc-active">0</b></button><button class="chip" data-mstatus="pending">待审 <b id="mc-pending">0</b></button><button class="chip" data-mstatus="rejected">驳回 <b id="mc-rejected">0</b></button></div></div>
+            <div class="card-head mem-head" style="margin-bottom:6px"><h3 style="margin:0">记忆</h3><div class="chips" id="mem-tabs"><button class="chip active" data-mstatus="active">生效 <b id="mc-active">0</b></button><button class="chip" data-mstatus="pending">待审 <b id="mc-pending">0</b></button><button class="chip" data-mstatus="rejected">驳回 <b id="mc-rejected">0</b></button></div></div>
             <div id="memory-list" class="list"></div>
             <h3 style="margin-top:16px">反向链接</h3>
             <div id="wiki-backlinks" class="backlinks"><div class="tiny">选择页面后显示关联</div></div>
@@ -316,7 +316,7 @@
         <div class="grid two">
           <div class="card">
             <div class="card-head"><h3>隐私规则</h3><button class="btn sm" id="btn-rule-add">添加规则</button></div>
-            <p class="hint field">按应用或网站设置采集粒度：<b>不采集</b> / <b>仅标题</b>（去除正文与完整 URL）/ <b>完整</b>。规则优先于自动检测。</p>
+            <p class="hint field">按应用或网站设置采集粒度：不采集 · 仅标题（去除正文与完整 URL）· 完整。规则优先于自动检测。</p>
             <div class="table-wrap"><table class="data"><thead><tr><th>匹配</th><th>范围</th><th>粒度</th><th></th></tr></thead><tbody id="rules-body"></tbody></table></div>
             <label class="switch" style="margin-top:10px"><input type="checkbox" id="pr-sensitive" /><span>自动识别敏感窗口（密码管理器、网银、无痕窗口、登录页）</span></label>
             <button class="btn primary" id="btn-rules-save" style="margin-top:8px">保存规则</button>

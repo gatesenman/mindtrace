@@ -136,11 +136,11 @@ async function runScreenshotTour() {
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-mstatus=active]')?.click()`);
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=collect]')?.click()`);
   await wait(700);
-  await mainWindow.webContents.executeJavaScript(`document.getElementById('btn-rule-add')?.click(); document.getElementById('rules-body')?.closest('.card')?.scrollIntoView({block:'start'})`);
+  await mainWindow.webContents.executeJavaScript(`document.getElementById('btn-rule-add')?.click(); document.getElementById('rules-body')?.closest('.card')?.scrollIntoView({block:'start',behavior:'instant'})`);
   await wait(500); await capture('22-privacy-audit.png');
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=ai]')?.click()`);
   await wait(800); await capture('23-usage-jobs.png');
-  await mainWindow.webContents.executeJavaScript(`document.getElementById('mcp-config')?.closest('.card')?.scrollIntoView({block:'center'})`);
+  await mainWindow.webContents.executeJavaScript(`document.getElementById('mcp-config')?.closest('.card')?.scrollIntoView({block:'center',behavior:'instant'})`);
   await wait(400); await capture('24-backup-mcp.png');
   await mainWindow.webContents.executeJavaScript(`document.querySelectorAll('.view').forEach(v=>v.scrollTop=0); document.querySelector('.content, main')?.scrollTo?.(0,0)`);
   // Dark mode tour
@@ -165,7 +165,7 @@ async function runScreenshotTour() {
   await wait(500); await capture('26-wiki-review-dark.png');
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=collect]')?.click()`);
   await wait(600);
-  await mainWindow.webContents.executeJavaScript(`document.getElementById('audit-body')?.closest('.card')?.scrollIntoView({block:'end'})`);
+  await mainWindow.webContents.executeJavaScript(`document.getElementById('audit-body')?.closest('.card')?.scrollIntoView({block:'end',behavior:'instant'})`);
   await wait(400); await capture('27-audit-dark.png');
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=ai]')?.click()`);
   await wait(700); await capture('28-settings-pro-dark.png');
