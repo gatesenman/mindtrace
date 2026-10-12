@@ -1,4 +1,5 @@
-const initSqlJs = require('sql.js');
+const dbAdapter = require('./db');
+const { toIndexText, toMatchQuery } = require('../common/bigram');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -6,7 +7,8 @@ const { isSelfApp, friendlyAppName } = require('./appNames');
 const { redactText } = require('../privacy/redact');
 const { app } = require('electron');
 
-let SQL = null;
+let ftsMode = 'none'; // fts5 | fts4 | none
+const ftsErrors = { count: 0, last: null };
 let db = null;
 let dbPath = null;
 let saveTimer = null;
@@ -134,21 +136,55 @@ CREATE TABLE IF NOT EXISTS rollups (
 
 `;
 
-async function initStore() {
-  SQL = await initSqlJs();
-  dbPath = path.join(app.getPath('userData'), 'mindtrace.db');
+async function initStore(opts = {}) {
+  dbPath = opts.dbPath || path.join(app.getPath('userData'), 'mindtrace.db');
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  if (fs.existsSync(dbPath)) {
-    const buf = fs.readFileSync(dbPath);
-    db = new SQL.Database(buf);
-  } else {
-    db = new SQL.Database();
-  }
-  db.run(SCHEMA);
+  db = await dbAdapter.open(dbPath, opts);
+  db.exec(SCHEMA);
+  initFts();
   dirty = true;
   persist(true);
   return db;
 }
+
+/** FTS5 → FTS4 → none（bigram LIKE），并在 fts 为空时重建索引 */
+function initFts() {
+  const cols = 'id UNINDEXED, title, content, url, path, app, type UNINDEXED';
+  const tries = [
+    ['fts5', `CREATE VIRTUAL TABLE IF NOT EXISTS fts_events USING fts5(${cols}, tokenize='unicode61')`],
+    ['fts4', `CREATE VIRTUAL TABLE IF NOT EXISTS fts_events USING fts4(id, title, content, url, path, app, type, notindexed=id, notindexed=type, tokenize=unicode61)`]
+  ];
+  const existing = get(`SELECT sql FROM sqlite_master WHERE name='fts_events'`);
+  if (existing) {
+    ftsMode = /fts5/i.test(existing.sql) ? 'fts5' : /fts4/i.test(existing.sql) ? 'fts4' : 'none';
+    try { get(`SELECT count(*) c FROM fts_events`); } catch (e) { try { db.exec('DROP TABLE fts_events'); } catch (_) {} ftsMode = 'none'; }
+  }
+  if (ftsMode === 'none') {
+    for (const [mode, sql] of tries) {
+      try { db.exec(sql); ftsMode = mode; break; } catch (e) { ftsErrors.last = `${mode}: ${e.message}`; }
+    }
+  }
+  if (ftsMode !== 'none') {
+    const n = get(`SELECT count(*) c FROM fts_events`)?.c || 0;
+    const m = get(`SELECT count(*) c FROM activities`)?.c || 0;
+    if (n === 0 && m > 0) reindexFts();
+  }
+  console.log(`[store] engine=${db.engine} fts=${ftsMode}`);
+}
+function reindexFts() {
+  if (ftsMode === 'none') return 0;
+  run(`DELETE FROM fts_events`);
+  const rows = all(`SELECT id, window_title, content, url, file_path, app_name, type FROM activities`);
+  transaction(() => rows.forEach(r => indexActivityFts(r)));
+  return rows.length;
+}
+/** 删除活动前调用：按 rowid 清 FTS（避免按 id 全表扫描） */
+function deleteActivitiesFts(whereSql, params) {
+  if (ftsMode === 'none') return;
+  try { run(`DELETE FROM fts_events WHERE rowid IN (SELECT rowid FROM activities WHERE ${whereSql})`, params); } catch (e) { ftsErrors.count++; ftsErrors.last = e.message; }
+}
+function ftsStatus() { return { engine: db?.engine, mode: ftsMode, errors: ftsErrors.count, lastError: ftsErrors.last }; }
+function transaction(fn) { const r = db.transaction(fn); schedulePersist(); return r; }
 
 let dirty = false;
 let lastPersistAt = 0;
@@ -160,10 +196,7 @@ function persist(force = false) {
   if (!db || !dbPath) return;
   if (!dirty && !force) return;
   try {
-    const data = db.export();
-    const tmp = dbPath + '.tmp';
-    fs.writeFileSync(tmp, Buffer.from(data));
-    fs.renameSync(tmp, dbPath);
+    db.persist();
     dirty = false;
     lastPersistAt = Date.now();
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
@@ -200,6 +233,7 @@ function pruneOldData(opts = {}) {
   let deleted = { activities: 0, screenshots: 0, chat: 0 };
   try {
     const beforeA = get(`SELECT COUNT(*) as c FROM activities WHERE started_at<?`, [cutoffAct]);
+    deleteActivitiesFts('started_at<?', [cutoffAct]);
     run(`DELETE FROM activities WHERE started_at<?`, [cutoffAct]);
     deleted.activities = beforeA?.c || 0;
     const beforeS = get(`SELECT COUNT(*) as c FROM screenshots WHERE taken_at<?`, [cutoffSs]);
@@ -226,17 +260,13 @@ function pruneOldData(opts = {}) {
 }
 
 function run(sql, params = []) {
-  db.run(sql, params);
+  const r = db.run(sql, params);
   schedulePersist();
+  return r;
 }
 
 function all(sql, params = []) {
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const rows = [];
-  while (stmt.step()) rows.push(stmt.getAsObject());
-  stmt.free();
-  return rows;
+  return db.all(sql, params);
 }
 
 function get(sql, params = []) {
@@ -245,6 +275,8 @@ function get(sql, params = []) {
 }
 
 let insertPolicy = null;
+let activityHook = null;
+function setActivityHook(fn) { activityHook = typeof fn === 'function' ? fn : null; }
 let memoryThreshold = 0.75;
 function setInsertPolicy(fn) { insertPolicy = typeof fn === 'function' ? fn : null; }
 function setMemoryThreshold(v) { if (typeof v === 'number') memoryThreshold = v; }
@@ -276,6 +308,8 @@ function insertActivity(row) {
       now
     ]
   );
+  indexActivityFts({ ...row, id, content });
+  if (activityHook) { try { activityHook({ ...row, id, content }); } catch (_) {} }
   return id;
 }
 
@@ -536,7 +570,7 @@ function clearDemoData() {
   for (const a of acts) {
     try {
       const m = a.meta ? JSON.parse(a.meta) : null;
-      if (m && m.isDemo) run(`DELETE FROM activities WHERE id=?`, [a.id]);
+      if (m && m.isDemo) { deleteActivitiesFts('id=?', [a.id]); run(`DELETE FROM activities WHERE id=?`, [a.id]); }
     } catch (_) {}
   }
   run(`DELETE FROM knowledge_cards WHERE tags LIKE '%"示例"%' OR title LIKE '【示例】%'`);
@@ -601,26 +635,43 @@ function upsertRollup(r) {
 }
 
 function indexActivityFts(row) {
+  if (ftsMode === 'none' || !row || !row.id) return;
   try {
-    run(`DELETE FROM fts_events WHERE id=?`, [row.id]);
-    run(`INSERT INTO fts_events (id,title,content,url,path,app,type) VALUES (?,?,?,?,?,?,?)`, [
-      row.id, row.window_title || row.title || '', row.content || '', row.url || '', row.file_path || row.path || '', row.app_name || row.app || '', row.type || ''
+    const rid = get(`SELECT rowid AS r FROM activities WHERE id=?`, [row.id])?.r;
+    if (rid == null) return;
+    run(`DELETE FROM fts_events WHERE rowid=?`, [rid]);
+    run(`INSERT INTO fts_events (rowid,id,title,content,url,path,app,type) VALUES (?,?,?,?,?,?,?,?)`, [
+      rid, row.id, toIndexText(row.window_title || row.title || ''), toIndexText(String(row.content || '').slice(0, 20000)),
+      toIndexText(row.url || ''), toIndexText(row.file_path || row.path || ''), toIndexText(row.app_name || row.app || ''), row.type || ''
     ]);
   } catch (e) {
-    // FTS may fail on first run if virtual table issue
+    ftsErrors.count++; ftsErrors.last = e.message;
+    if (ftsErrors.count <= 3) console.error('[store] FTS write failed:', e.message);
   }
 }
 
+/** 全文检索：FTS(bigram) 命中 → 回表取原文；无 FTS 时退化为 bigram LIKE */
 function searchFts(q, limit = 50) {
   if (!q || !String(q).trim()) return [];
-  try {
-    return all(
-      `SELECT id, title, content, url, path, app, type FROM fts_events WHERE fts_events MATCH ? LIMIT ?`,
-      [String(q).trim(), limit]
-    );
-  } catch (e) {
-    return searchActivities({ q, limit });
+  const cols = `a.id, a.window_title AS title, a.content, a.url, a.file_path AS path, a.app_name AS app, a.type, a.started_at`;
+  if (ftsMode !== 'none') {
+    const mq = toMatchQuery(q);
+    if (mq) {
+      try {
+        const order = ftsMode === 'fts5' ? 'ORDER BY bm25(fts_events)' : '';
+        const rids = all(`SELECT rowid AS r FROM fts_events WHERE fts_events MATCH ? ${order} LIMIT ?`, [mq, limit]).map(r => r.r);
+        if (!rids.length) return [];
+        const rows = all(`SELECT a.rowid AS _r, ${cols} FROM activities a WHERE a.rowid IN (${rids.map(() => '?').join(',')})`, rids);
+        const pos = new Map(rids.map((id, i) => [id, i]));
+        return rows.sort((x, y) => pos.get(x._r) - pos.get(y._r));
+      } catch (e) { ftsErrors.count++; ftsErrors.last = e.message; }
+    }
   }
+  const terms = toIndexText(q).split(' ').filter(Boolean).slice(0, 8);
+  if (!terms.length) return [];
+  const where = terms.map(() => `(a.window_title LIKE ? OR a.content LIKE ? OR a.url LIKE ? OR a.app_name LIKE ?)`).join(' AND ');
+  const params = terms.flatMap(t => Array(4).fill(`%${t}%`));
+  return all(`SELECT ${cols} FROM activities a WHERE ${where} ORDER BY a.started_at DESC LIMIT ?`, [...params, limit]);
 }
 
 function getRollups(level, fromKey, toKey) {
@@ -643,6 +694,9 @@ function listMemories(kind) {
 }
 
 function insertActivityBatch(events) {
+  return transaction(() => insertActivityBatchInner(events));
+}
+function insertActivityBatchInner(events) {
   const ids = [];
   for (const ev of events || []) {
     const id = insertActivity({
@@ -660,20 +714,20 @@ function insertActivityBatch(events) {
     });
     if (!id) continue;
     ids.push(id);
-    indexActivityFts({ id, ...ev, window_title: ev.title, app_name: ev.app, file_path: ev.path });
   }
   return ids;
 }
 
 
 function getDbPath() { return dbPath; }
-function closeStore() { if (db) { persist(true); db.close(); db = null; } }
+function closeStore() { if (db) { persist(true); db.close(); db = null; ftsMode = 'none'; } }
+function getDb() { return db; }
 
 module.exports = {
-  initStore, persist, closeStore, getDbPath, pruneOldData,
+  initStore, persist, closeStore, getDbPath, pruneOldData, ftsStatus, reindexFts, deleteActivitiesFts, transaction, getDb,
   run, all, get,
   insertActivity, updateActivityEnd, insertScreenshot, updateScreenshotDescription,
   upsertKnowledgeCard, upsertJournal, addChatMessage,
   searchActivities, getTodayStats, getActivityById, getCardById, getJournalById, upsertTopic, clearDemoData,
-  setInsertPolicy, setMemoryThreshold, upsertWikiPage, upsertMemory, upsertRollup, searchFts, getRollups, listWiki, listMemories, insertActivityBatch, indexActivityFts
+  setInsertPolicy, setActivityHook, setMemoryThreshold, upsertWikiPage, upsertMemory, upsertRollup, searchFts, getRollups, listWiki, listMemories, insertActivityBatch, indexActivityFts
 };

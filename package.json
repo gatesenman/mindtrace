@@ -28,8 +28,11 @@
     "files": [
       "src/**/*",
       "assets/**/*",
+      "native/**/*",
       "package.json",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "!node_modules/better-sqlite3/{src,deps,build}/**",
+      "!native/linux-x64/**"
     ],
     "extraResources": [],
     "win": {
@@ -89,9 +92,15 @@
     },
     "portable": {
       "artifactName": "MindTrace-${version}-portable.${ext}"
-    }
+    },
+    "asarUnpack": [
+      "native/**/*"
+    ],
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false
   },
   "dependencies": {
+    "better-sqlite3": "^11.10.0",
     "dayjs": "^1.11.13",
     "mammoth": "^1.9.0",
     "pdf-parse": "^1.1.1",

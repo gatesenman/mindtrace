@@ -101,10 +101,7 @@ function applyPolicy(row) {
 function wipeRange(from, to) {
   const a = store.get(`SELECT COUNT(*) c FROM activities WHERE started_at>=? AND started_at<?`, [from, to])?.c || 0;
   const s = store.get(`SELECT COUNT(*) c FROM screenshots WHERE taken_at>=? AND taken_at<?`, [from, to])?.c || 0;
-  try {
-    const ids = store.all(`SELECT id FROM activities WHERE started_at>=? AND started_at<?`, [from, to]);
-    for (const r of ids) { try { store.run(`DELETE FROM fts_events WHERE id=?`, [r.id]); } catch (_) {} }
-  } catch (_) {}
+  store.deleteActivitiesFts('started_at>=? AND started_at<?', [from, to]);
   store.run(`DELETE FROM activities WHERE started_at>=? AND started_at<?`, [from, to]);
   store.run(`DELETE FROM screenshots WHERE taken_at>=? AND taken_at<?`, [from, to]);
   audit('wipe', 'range', `${new Date(from).toISOString()}~${new Date(to).toISOString()}`, { activities: a, screenshots: s });
@@ -280,7 +277,7 @@ function restore(filePath, passphrase, { mode = 'replace' } = {}) {
     }
   }
   try {
-    for (const a of store.all(`SELECT * FROM activities`)) store.indexActivityFts(a);
+    store.reindexFts();
   } catch (_) {}
   store.persist(true);
   audit('restore', mode, filePath, obj.counts);
