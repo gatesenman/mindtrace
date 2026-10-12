@@ -71,6 +71,8 @@ async function runScreenshotTour() {
   await capture('01-onboarding-welcome.png');
   await mainWindow.webContents.executeJavaScript(`document.getElementById('ob-next1')?.click()`);
   await wait(600);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-preset=recommended]')?.click()`);
+  await wait(200);
   await capture('02-onboarding-collectors.png');
   await mainWindow.webContents.executeJavaScript(`document.getElementById('ob-c-window').checked=true;document.getElementById('ob-c-browser').checked=true;document.getElementById('ob-next2')?.click()`);
   await wait(600);
@@ -129,7 +131,7 @@ async function runScreenshotTour() {
   }
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=insights]')?.click()`);
   await wait(800); await capture('20-insights.png');
-  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=wiki]')?.click()`);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=memory]')?.click()`);
   await wait(700);
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-mstatus=pending]')?.click()`);
   await wait(500); await capture('21-wiki-review.png');
@@ -139,10 +141,40 @@ async function runScreenshotTour() {
   await mainWindow.webContents.executeJavaScript(`document.getElementById('btn-rule-add')?.click(); document.getElementById('rules-body')?.closest('.card')?.scrollIntoView({block:'start',behavior:'instant'})`);
   await wait(500); await capture('22-privacy-audit.png');
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=ai]')?.click()`);
-  await wait(800); await capture('23-usage-jobs.png');
-  await mainWindow.webContents.executeJavaScript(`document.getElementById('mcp-config')?.closest('.card')?.scrollIntoView({block:'center',behavior:'instant'})`);
+  await wait(800);
+  await mainWindow.webContents.executeJavaScript(`window.MTUX.settingsTab('usage')`);
+  await wait(400); await capture('23-usage-jobs.png');
+  await mainWindow.webContents.executeJavaScript(`window.MTUX.settingsTab('integration')`);
   await wait(400); await capture('24-backup-mcp.png');
   await mainWindow.webContents.executeJavaScript(`document.querySelectorAll('.view').forEach(v=>v.scrollTop=0); document.querySelector('.content, main')?.scrollTo?.(0,0)`);
+  await mainWindow.webContents.executeJavaScript(`window.MTUX.settingsTab('model')`);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=collect]')?.click()`);
+  await wait(800); await capture('30-collect-table.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=timeline]')?.click()`);
+  await wait(1200);
+  await mainWindow.webContents.executeJavaScript(`(()=>{const tr=document.getElementById('scrub-track'); if(!tr) return; const r=tr.getBoundingClientRect(); const x=(i)=>r.left+r.width*(i+.5)/96; const y=r.top+20; tr.dispatchEvent(new MouseEvent('mousedown',{clientX:x(40),clientY:y,bubbles:true})); tr.dispatchEvent(new MouseEvent('mousemove',{clientX:x(47),clientY:y,bubbles:true})); window.dispatchEvent(new MouseEvent('mouseup',{clientX:x(47),clientY:y,bubbles:true})); setTimeout(()=>tr.dispatchEvent(new MouseEvent('mousemove',{clientX:x(44),clientY:y,bubbles:true})),500);})()`);
+  await wait(1200); await capture('31-timeline-scrubber.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=wiki]')?.click()`);
+  await wait(900);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('#wiki-list [data-slug="demo-知迹 2.2"]')?.click()`);
+  await wait(600);
+  await mainWindow.webContents.executeJavaScript(`(()=>{const a=document.querySelector('#wiki-body .wikilink'); a&&a.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));})()`);
+  await wait(700); await capture('32-wiki-hovercard.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('.hovercard')?.classList.add('hidden')`);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=chat]')?.click()`);
+  await wait(900);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('#view-chat .cite-card')?.click()`);
+  await wait(900); await capture('33-citation-panel.png');
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('.side-panel')?.classList.remove('open')`);
+  await mainWindow.webContents.executeJavaScript(`document.getElementById('btn-cmd-open')?.click()`);
+  await wait(300);
+  await mainWindow.webContents.executeJavaScript(`(()=>{const i=document.getElementById('cmd-input'); i.value='@'; i.dispatchEvent(new Event('input'));})()`);
+  await wait(600); await capture('34-cmdk-people.png');
+  await mainWindow.webContents.executeJavaScript(`(()=>{const i=document.getElementById('cmd-input'); i.value='>'; i.dispatchEvent(new Event('input')); setTimeout(()=>{i.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true})); i.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));},250);})()`);
+  await wait(500); await capture('35-cmdk-commands.png');
+  await mainWindow.webContents.executeJavaScript(`document.getElementById('cmd-overlay')?.classList.add('hidden')`);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=dashboard]')?.click()`);
+  await wait(800); await capture('36-dashboard-checklist.png');
   // Dark mode tour
   await mainWindow.webContents.executeJavaScript(`
     document.body.setAttribute('data-theme','dark');
@@ -159,7 +191,7 @@ async function runScreenshotTour() {
   }
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=insights]')?.click()`);
   await wait(700); await capture('25-insights-dark.png');
-  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=wiki]')?.click()`);
+  await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=memory]')?.click()`);
   await wait(600);
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-mstatus=pending]')?.click()`);
   await wait(500); await capture('26-wiki-review-dark.png');
@@ -168,7 +200,10 @@ async function runScreenshotTour() {
   await mainWindow.webContents.executeJavaScript(`document.getElementById('audit-body')?.closest('.card')?.scrollIntoView({block:'end',behavior:'instant'})`);
   await wait(400); await capture('27-audit-dark.png');
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=ai]')?.click()`);
-  await wait(700); await capture('28-settings-pro-dark.png');
+  await wait(700);
+  await mainWindow.webContents.executeJavaScript(`window.MTUX.settingsTab('data')`);
+  await wait(400); await capture('28-settings-pro-dark.png');
+  await mainWindow.webContents.executeJavaScript(`window.MTUX.settingsTab('model')`);
   // Empty states (demo off)
   setDemoMode(false);
   await mainWindow.webContents.executeJavaScript(`
@@ -475,8 +510,6 @@ function seedDemoData() {
     period_key: new Date().toISOString().slice(0, 10),
     title: '示例日报：企业级体验与知识沉淀',
     content: [
-      '【示例数据】',
-      '',
       '## 今日概览',
       '',
       '今天围绕 **知迹 2.1** 推进企业级界面与知识沉淀：上午在 Chrome / Edge 查阅 Electron 与 FTS5 资料，中午用飞书同步评审，下午在 VS Code 与 Cursor 落地 UI 与示例数据，傍晚整理 Word / PDF 文档并与张三微信对齐进度。',
@@ -537,6 +570,25 @@ function seedProDemo(now) {
   for (let d = 0; d < 9; d++) use.forEach((u, i) => q(`INSERT OR REPLACE INTO llm_usage (id,ts,provider,model,purpose,prompt_tokens,completion_tokens,cost_usd,latency_ms,ok,error) VALUES (?,?,?,?,?,?,?,?,?,?,?)`, [`demo-u${d}-${i}`, now - d * 20 * H - i * M, 'deepseek', u[0], u[1], u[2], u[3], u[4] * 3, u[5], u[6], u[6] ? null : '超时（示例）']));
   const jobs = [['rollup', 'done', 1, now - 15 * M, null], ['summarize', 'done', 1, now - 62 * M, null], ['rollup', 'failed', 2, now - 2 * H, 'AI API 429: rate limited（示例）'], ['rollup', 'done', 1, now - 3 * H, null], ['summarize', 'done', 2, now - 6 * H, null]];
   jobs.forEach((j, i) => q(`INSERT OR REPLACE INTO jobs (id,kind,status,params,attempts,created_at,started_at,finished_at,error) VALUES (?,?,?,?,?,?,?,?,?)`, ['demo-j' + i, j[0], j[1], JSON.stringify({ level: 'hour', demo: true }), j[2], j[3], j[3], j[3] + 4000, j[4]]));
+  // Wiki 实体页 + 各级汇总卷（示例）
+  const pages = [
+    ['person', '张三', '## 张三\n\n- 角色：Windows 打包与签名负责人\n- 最近：今日 10:20 微信同步 [[知迹 2.2]] 发布进度\n- 关联：[[李四]]、[[发布流程]]'],
+    ['person', '李四', '## 李四\n\n- 角色：设计评审\n- 最近：飞书评审 [[知迹 2.2]] 洞察页\n- 关联：[[张三]]'],
+    ['project', '知迹 2.2', '## 知迹 2.2\n\n专业版：隐私规则、加密备份、记忆审核、标准 MCP。\n\n- 负责人：[[张三]]\n- 评审：[[李四]]\n- 相关主题：[[隐私合规]]、[[发布流程]]'],
+    ['project', '发布流程', '## 发布流程\n\nNSIS 安装包 + 便携版 + zip，wine 构建。\n\n- 关联项目：[[知迹 2.2]]'],
+    ['topic', '隐私合规', '## 隐私合规\n\n参考 Microsoft Recall 的排除规则与敏感内容过滤；审计日志可追溯。\n\n- 落地：[[知迹 2.2]]'],
+    ['topic', '检索与性能', '## 检索与性能\n\nFTS5 全文索引，1 万条事件检索 <5ms。\n\n- 关联：[[知迹 2.2]]']
+  ];
+  pages.forEach(([kind, title, body]) => store.upsertWikiPage({ kind, slug: 'demo-' + title, title: '【示例】' + title, body_md: body }));
+  const dk = wikiEngine.dayKey(now);
+  store.upsertWikiPage({ kind: 'time', slug: 'demo-day-' + dk, title: '【示例】' + dk + ' 日卷', body_md: '## 今日日卷\n\n上午检索资料，下午在 VS Code 推进 [[知迹 2.2]]，与 [[张三]] 对齐发布。' });
+  const R = (level, key, title, md, stats) => store.upsertRollup({ level, period_key: key, title: '【示例】' + title, summary_md: md, stats: { ...stats, demo: true } });
+  for (let h = 1; h <= 6; h++) {
+    const ts = now - h * H;
+    R('hour', wikiEngine.hourKey(ts), `${new Date(ts).getHours()}:00 – ${new Date(ts).getHours() + 1}:00`, ['在 VS Code 编写隐私规则引擎与测试', '飞书评审洞察页，记录 3 条意见', 'Chrome 查阅 MCP 规范与 JSON-RPC', '微信与张三同步打包进度', '整理 PDF 资料并写速记', 'Cursor 重构设置页'][h - 1], { events: 8 + h, minutes: 40 + h * 3 });
+  }
+  for (let w = 0; w < 4; w++) R('week', wikiEngine.weekKey(now - w * 7 * 86400e3), `第 ${w + 1} 周回顾`, ['完成 2.2 专业版主体功能与测试', '2.1 企业级界面两轮打磨', '2.0 采集器与 Wiki 引擎', 'PRD 与竞品调研'][w], { minutes: 2100 - w * 160 });
+  for (let m = 0; m < 3; m++) { const d = new Date(now); d.setMonth(d.getMonth() - m); R('month', wikiEngine.monthKey(d.getTime()), `${d.getMonth() + 1} 月回顾`, ['发布 2.0→2.2，形成完整本地知识库产品', '原型与设计系统', '需求调研'][m], { minutes: 8800 - m * 900 }); }
   [['preference', '【示例】偏好在上午处理需要深度专注的编码任务', 0.62], ['decision', '【示例】2.2 版本暂缓 utilityProcess 隔离，优先隐私规则', 0.7], ['fact', '【示例】张三负责 Windows 安装包签名', 0.66]]
     .forEach(([kind, text, confidence]) => store.upsertMemory({ kind, text, confidence, status: 'pending' }));
   [['preference', '【示例】默认使用 DeepSeek 作为摘要模型', 0.9], ['fact', '【示例】知迹的数据只保存在本机 SQLite', 0.92]]
@@ -747,6 +799,7 @@ function registerIpc() {
     const j = await pro.runJob('rollup', { level: opts.level || 'day', key: opts.key });
     return j.ok ? { ok: true } : { ok: false, error: j.error };
   });
+  ipcMain.handle('clear-chat', () => { store.run(`DELETE FROM chat_messages`); store.persist(); return { ok: true }; });
   // ── v2.2 pro ──
   const safe = fn => async (...a) => { try { return await fn(...a); } catch (e) { return { ok: false, error: e.message }; } };
   ipcMain.handle('pro-audit', (_e, o) => pro.listAudit(o || {}));

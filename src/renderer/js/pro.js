@@ -105,7 +105,7 @@
     $('memory-list').innerHTML = list.map(m => `
       <div class="mem-item" data-mid="${esc(m.id)}">
         <div class="mem-top"><span class="tag">${esc(m.kind)}</span><span class="tiny muted num">置信度 ${Math.round((m.confidence || 0) * 100)}%</span></div>
-        <div class="mem-text">${esc(m.text)}</div>
+        <div class="mem-text">${escTitle(m.text)}</div>
         ${memStatus !== 'active' ? `<div class="mem-actions"><button class="btn sm primary" data-mact="approve">通过</button><button class="btn sm" data-mact="edit">编辑</button>${memStatus === 'pending' ? '<button class="btn sm ghost" data-mact="reject">驳回</button>' : ''}</div>` : `<div class="mem-actions"><button class="btn sm ghost" data-mact="reject">撤回</button></div>`}
       </div>`).join('') || emptyState(memStatus === 'pending' ? '没有待审记忆' : '暂无记忆条目', memStatus === 'pending' ? '低于置信阈值的记忆会进入这里，审核通过后才对问答与 MCP 可见。' : '生成日卷或摘要后将抽取记忆。');
     document.querySelectorAll('[data-mact]').forEach(b => b.onclick = async () => {

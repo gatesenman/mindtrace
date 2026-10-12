@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('mindtrace', {
+  clearChat: () => ipcRenderer.invoke('clear-chat'),
   proAudit: (o) => ipcRenderer.invoke('pro-audit', o),
   proWipeRange: (o) => ipcRenderer.invoke('pro-wipe-range', o),
   proGetRules: () => ipcRenderer.invoke('pro-get-rules'),

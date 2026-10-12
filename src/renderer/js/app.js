@@ -23,12 +23,21 @@ function emptyState(title, desc) {
   const illu = (window.MTIcons && MTIcons.empty) ? MTIcons.empty() : '';
   return `<div class="empty">${illu}<h3>${escapeHtml(title)}</h3><p>${escapeHtml(desc || '')}</p></div>`;
 }
-function toast(msg) {
+/** toast(msg, {type:'success'|'error'|'info', action:{label, run}, sticky}) */
+function toast(msg, opts = {}) {
   const el = $('toast');
-  el.textContent = msg;
-  el.classList.remove('hidden');
+  const type = opts.type || (/失败|错误|无法/.test(msg) ? 'error' : /已|成功|完成/.test(msg) ? 'success' : 'info');
+  el.className = 'toast ' + type;
+  el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  const icon = { success: '✓', error: '!', info: 'i' }[type];
+  el.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-msg">${escapeHtml(msg)}</span>` +
+    (opts.action ? `<button type="button" class="toast-action">${escapeHtml(opts.action.label)}</button>` : '') +
+    (type === 'error' || opts.action ? '<button type="button" class="toast-close" aria-label="关闭">×</button>' : '');
+  const hide = () => el.classList.add('hidden');
+  el.querySelector('.toast-action')?.addEventListener('click', () => { hide(); opts.action.run(); });
+  el.querySelector('.toast-close')?.addEventListener('click', hide);
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => el.classList.add('hidden'), 2600);
+  if (!(type === 'error' || opts.sticky)) toast._t = setTimeout(hide, opts.action ? 6000 : 2600);
 }
 
 function fmtMin(ms) {
@@ -43,6 +52,11 @@ function fmtTime(ts) {
 }
 function typeLabel(t) {
   return ({ window: '窗口', browser: '浏览', document: '文档', clipboard: '剪贴板', screenshot: '截屏', note: '笔记', ide: 'IDE', download: '下载', file: '文件', uia: '界面文本' })[t] || t;
+}
+function escTitle(s, badge = true) {
+  const raw = String(s || '');
+  const demo = /^【示例(数据)?】/.test(raw);
+  return escapeHtml(raw.replace(/^【示例(数据)?】\s*/, '')) + (demo && badge ? '<span class="demo-tag">示例</span>' : '');
 }
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -244,7 +258,7 @@ async function loadDashboard() {
   if (j) {
     let highlights = [];
     try { highlights = JSON.parse(j.highlights || '[]'); } catch {}
-    const demo = /示例/.test(j.title || '') || /【示例数据】/.test(j.content || '');
+    const demo = /示例/.test(j.title || '') || false;
     const md = [
       j.title ? `## ${j.title}` : '',
       j.content || '',
@@ -284,7 +298,7 @@ async function loadTimeline(opts = {}) {
     }
     $('timeline-list').innerHTML = rolls.map(r => `
       <div class="rollup-card" data-level="${escapeHtml(r.level)}" data-key="${escapeHtml(r.period_key)}">
-        <h4>${escapeHtml(r.title || r.period_key)}</h4>
+        <h4>${escTitle(r.title || r.period_key)}</h4>
         <div class="preview">${escapeHtml((r.summary_md || '').replace(/[#>*`]/g,'').slice(0, 180))}</div>
       </div>`).join('');
     document.querySelectorAll('.rollup-card').forEach(card => {
@@ -360,7 +374,7 @@ function showKnowledgeTab(tab) {
 async function loadJournalsTab(focusId) {
   const journals = await window.mindtrace.getJournals();
   $('journals-list').innerHTML = journals.map(j => {
-    const demo = /示例/.test(j.title || '') || /【示例数据】/.test(j.content || '');
+    const demo = /示例/.test(j.title || '') || false;
     const hl = focusId && j.id === focusId;
     return `<div class="list-item${hl ? ' highlight' : ''}" style="grid-template-columns: 100px 1fr" data-id="${escapeHtml(j.id)}" id="journal-${escapeHtml(j.id)}" data-open-journal="${escapeHtml(j.id)}">
       <div>${j.period_key}${demo ? '<span class="demo-tag">示例</span>' : ''}</div>
@@ -386,7 +400,7 @@ async function loadTopicsTab(focusId) {
     const demo = /【示例】/.test(tp.name || '');
     return `<div class="kcard" data-kind="project" data-id="${escapeHtml(tp.id)}" id="topic-${escapeHtml(tp.id)}">
       <div class="kind">主题${demo ? '<span class="demo-tag">示例</span>' : ''}</div>
-      <h4>${escapeHtml(tp.name)}</h4>
+      <h4>${escTitle(tp.name, false)}</h4>
       <p>${escapeHtml(tp.summary || '')}</p>
       <div class="tiny">关联卡片 ${(() => { try { return JSON.parse(tp.card_ids||'[]').length; } catch { return 0; } })()} · 活动 ${tp.activity_count || 0}</div>
     </div>`;
@@ -411,7 +425,7 @@ async function loadCardsTab(focusId) {
     const hl = focusId && c.id === focusId;
     return `<div class="kcard${hl ? ' highlight' : ''}" data-kind="${escapeHtml(c.kind)}" data-id="${escapeHtml(c.id)}" id="card-${escapeHtml(c.id)}">
       <div class="kind">${escapeHtml(c.kind)}${demo ? '<span class="demo-tag">示例</span>' : ''}</div>
-      <h4>${escapeHtml(c.title)}</h4>
+      <h4>${escTitle(c.title, false)}</h4>
       <p>${escapeHtml(c.summary || '')}</p>
     </div>`;
   }).join('') || emptyState('暂无知识卡片', '采集一段时间后由 AI 提炼，或开启体验示例数据。');
@@ -463,7 +477,7 @@ async function loadWiki() {
   $('wiki-list').innerHTML = pages.map(p => `
     <div class="list-item" style="grid-template-columns: 72px 1fr; cursor:pointer" data-slug="${escapeHtml(p.slug)}">
       <div class="tag">${escapeHtml(p.kind)}</div>
-      <div><b>${escapeHtml(p.title)}</b><div class="muted tiny">${escapeHtml((p.body_md||'').slice(0,80))}</div></div>
+      <div><b>${escTitle(p.title)}</b><div class="muted tiny">${escapeHtml((p.body_md||'').replace(/^#+.*$/m,'').replace(/[#*>`\[\]-]/g,'').trim().slice(0,60))}</div></div>
     </div>`).join('') || emptyState('暂无 Wiki 页', '生成日卷后将出现时间卷与实体。');
   $('memory-list').innerHTML = mems.map(m => `
     <div class="list-item" style="grid-template-columns: 72px 1fr">
@@ -475,7 +489,7 @@ async function loadWiki() {
       const page = pages.find(x => x.slug === el.dataset.slug);
       if (!page) return;
       $('wiki-body').classList.remove('muted');
-      $('wiki-body').textContent = page.body_md || '';
+      $('wiki-body').innerHTML = renderMarkdown(page.body_md || ''); $('wiki-body').classList.add('md');
       if ($('wiki-tags')) {
         const tags = [page.kind, page.period_key].filter(Boolean);
         $('wiki-tags').innerHTML = tags.map(tg => `<span class="tag-pill">${escapeHtml(tg)}</span>`).join('') || '';
@@ -483,13 +497,13 @@ async function loadWiki() {
       if ($('wiki-backlinks')) {
         const related = pages.filter(x => x.slug !== page.slug && (x.kind === page.kind || (page.body_md||'').includes(x.title))).slice(0, 6);
         $('wiki-backlinks').innerHTML = related.length
-          ? related.map(r => `<div class="backlink" data-slug="${escapeHtml(r.slug)}">${escapeHtml(r.title)}</div>`).join('')
+          ? related.map(r => `<div class="backlink" data-slug="${escapeHtml(r.slug)}">${escTitle(r.title)}</div>`).join('')
           : '<div class="tiny">暂无反向链接</div>';
         $('wiki-backlinks').querySelectorAll('.backlink').forEach(b => {
           b.onclick = () => {
             const tgt = pages.find(x => x.slug === b.dataset.slug);
             if (!tgt) return;
-            $('wiki-body').textContent = tgt.body_md || '';
+            $('wiki-body').innerHTML = renderMarkdown(tgt.body_md || '');
             if ($('wiki-tags')) $('wiki-tags').innerHTML = `<span class="tag-pill">${escapeHtml(tgt.kind||'')}</span>`;
           };
         });
@@ -515,7 +529,7 @@ async function loadChat() {
   } else {
     log.innerHTML = msgs.map(m => {
       const cites = m.role === 'assistant' ? parseMsgCitations(m) : [];
-      return `<div class="bubble ${m.role}">${escapeHtml(m.content)}${renderCitations(cites)}</div>`;
+      return `<div class="bubble ${m.role}">${escapeHtml(m.content).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>")}${renderCitations(cites)}</div>`;
     }).join('');
     sug?.classList.add('hidden');
   }
@@ -557,7 +571,10 @@ function readObCollectors() {
     browser: $('ob-c-browser').checked,
     documents: $('ob-c-documents').checked,
     clipboard: $('ob-c-clipboard').checked,
-    screenshots: $('ob-c-screenshots').checked
+    screenshots: $('ob-c-screenshots').checked,
+    ide: !!$('ob-c-ide')?.checked,
+    downloads: !!$('ob-c-downloads')?.checked,
+    files: !!$('ob-c-downloads')?.checked
   };
 }
 
@@ -604,9 +621,13 @@ function bind() {
   $('ob-test').onclick = async () => {
     const key = $('ob-ai-key').value.trim();
     if (key) await window.mindtrace.setConfig({ ai: { apiKey: key, baseUrl: $('ob-ai-base').value.trim(), model: $('ob-ai-model').value.trim(), provider: $('ob-ai-preset').value } });
-    $('ob-ai-result').textContent = '测试中…';
+    const box = $('ob-ai-result');
+    box.className = 'inline-status busy'; box.textContent = '正在连接…';
+    const t0 = performance.now();
     const r = await window.mindtrace.testAi();
-    $('ob-ai-result').textContent = r.ok ? r.content : ('错误：' + r.error);
+    const ms = Math.round(performance.now() - t0);
+    box.className = 'inline-status ' + (r.ok ? 'ok' : 'err');
+    box.textContent = r.ok ? `✓ 连接成功 · 延迟 ${ms}ms · ${$('ob-ai-model').value.trim() || '默认模型'}` : `✗ 连接失败：${r.error}（请检查 Base URL、模型名与 Key）`;
   };
   $('ob-finish').onclick = async () => {
     await window.mindtrace.setConfig({
@@ -810,42 +831,75 @@ function bind() {
       <div class="tl-card"><div><b>${escapeHtml(h.app||'')}</b> ${escapeHtml(h.title||'')}</div>
       <div class="meta">${escapeHtml((h.content||'').slice(0,120))}</div></div></div>`).join('') || emptyState('无全文结果', '换个关键词试试');
   };
-  const cmdItems = (q) => {
-    const base = [
-      { label: '今日总览', hint: '页面', run: () => showView('dashboard') },
-      { label: '时间线', hint: '页面', run: () => showView('timeline') },
-      { label: '知识库', hint: '页面', run: () => showView('knowledge') },
-      { label: 'Wiki', hint: '页面', run: () => showView('wiki') },
-      { label: '智能问答', hint: '页面', run: () => showView('chat') },
-      { label: '采集中心', hint: '页面', run: () => showView('collect') },
-      { label: '设置', hint: '页面', run: () => showView('ai') },
-      { label: '生成本日摘要', hint: '操作', run: () => $('btn-summarize')?.click() },
-      { label: '导出知识库', hint: '操作', run: () => $('btn-export')?.click() },
-      { label: '打开速记', hint: '操作', run: () => { $('quick-note-modal')?.classList.remove('hidden'); $('qn-body')?.focus(); } },
-      { label: '切换深色 / 浅色主题', hint: '外观', run: () => $('btn-theme')?.click() },
-      { label: '暂停 / 恢复采集', hint: '采集', run: () => $('btn-pause')?.click() }
-    ];
-    const qq = (q || '').trim();
-    if (qq) base.unshift({ label: `搜索「${qq}」`, hint: '全文', run: () => runFts(qq) });
-    return base;
-  };
-  function renderCmd(q) {
-    const qq = (q || '').trim().toLowerCase();
-    const items = cmdItems(q).filter(it => !qq || it.label.toLowerCase().includes(qq) || it.hint.includes(qq) || it.hint === '全文');
-    $('cmd-results').innerHTML = items.map((it, i) =>
-      `<button type="button" class="cmd-item${i===0?' active':''}" data-idx="${i}"><span>${escapeHtml(it.label)}</span><span class="hint">${escapeHtml(it.hint)}</span></button>`
-    ).join('') || '<div class="empty" style="padding:20px">无匹配命令</div>';
+  let cmdState = { items: [], active: 0 };
+  let wikiCache = null, topicCache = null;
+  const PAGES = [
+    ['dashboard', '今日总览', 'Ctrl+1'], ['timeline', '时间线', 'Ctrl+2'], ['wiki', 'Wiki', 'Ctrl+3'], ['memory', '记忆', 'Ctrl+4'],
+    ['knowledge', '报告', 'Ctrl+5'], ['chat', '智能问答', 'Ctrl+6'], ['insights', '洞察', 'Ctrl+7'], ['collect', '采集中心', ''], ['ai', '设置', '']
+  ];
+  const COMMANDS = [
+    { label: '生成本日摘要', kbd: '', run: () => $('btn-summarize')?.click() },
+    { label: '生成今日日卷', run: () => window.mindtrace.buildRollup({ level: 'day' }).then(r => toast(r.ok ? '已生成今日日卷' : '生成失败：' + r.error)) },
+    { label: '生成本周周报', run: () => window.mindtrace.buildRollup({ level: 'week' }).then(r => toast(r.ok ? '已生成本周周报' : '生成失败：' + r.error)) },
+    { label: '暂停采集 30 分钟', run: async () => { await window.mindtrace.setPaused(true); await refreshState(); toast('已暂停采集 30 分钟', { action: { label: '撤销', run: async () => { await window.mindtrace.setPaused(false); refreshState(); } } }); setTimeout(async () => { await window.mindtrace.setPaused(false); refreshState(); }, 30 * 60000); } },
+    { label: '暂停 / 恢复采集', kbd: 'Ctrl+Shift+M', run: () => $('btn-pause')?.click() },
+    { label: '导出知识库（Markdown）', run: () => $('btn-export')?.click() },
+    { label: '打开速记', run: () => { $('quick-note-modal')?.classList.remove('hidden'); $('qn-body')?.focus(); } },
+    { label: '切换深色 / 浅色主题', run: () => $('btn-theme')?.click() },
+    { label: '清除最近 15 分钟数据', run: () => { showView('collect'); setTimeout(() => document.querySelector('[data-wipe="15"]')?.click(), 200); } },
+    { label: '导出加密备份', run: () => { showView('ai'); setTimeout(() => window.MTUX?.settingsTab('data'), 50); } }
+  ];
+  async function cmdItems(raw) {
+    const q = (raw || '').trim();
+    const pre = q[0];
+    const body = ['>', '@', '#', '?', '？'].includes(pre) ? q.slice(1).trim() : q;
+    const ql = body.toLowerCase();
+    const m = (s) => !ql || String(s).toLowerCase().includes(ql);
+    if (pre === '>') return [{ group: '操作', list: COMMANDS.filter(c => m(c.label)) }];
+    if (pre === '?' || pre === '？') return [{ group: '问 AI', list: [{ label: body ? `问：「${body}」` : '输入问题后回车', hint: '智能问答', run: () => { if (!body) return; showView('chat'); $('chat-input').value = body; $('btn-ask').click(); } }] }];
+    if (pre === '@') {
+      wikiCache = wikiCache || await window.mindtrace.getWiki();
+      const list = wikiCache.filter(p => (p.kind === 'person' || p.kind === 'project') && m(p.title)).slice(0, 12)
+        .map(p => ({ label: p.title.replace(/^【示例】/, ''), hint: p.kind === 'person' ? '人物' : '项目', run: () => { showView('wiki'); setTimeout(() => window.MTUX?.openWiki(p.slug), 150); } }));
+      return [{ group: '人物与项目', list }];
+    }
+    if (pre === '#') {
+      topicCache = topicCache || await window.mindtrace.getTopics();
+      wikiCache = wikiCache || await window.mindtrace.getWiki();
+      const list = [...topicCache.map(tp => ({ label: tp.name.replace(/^【示例】/, ''), hint: '主题', run: () => { showView('knowledge'); setTimeout(() => document.querySelector('[data-ktab=topics]')?.click(), 100); } })),
+        ...wikiCache.filter(p => p.kind === 'topic').map(p => ({ label: p.title.replace(/^【示例】/, ''), hint: 'Wiki 主题', run: () => { showView('wiki'); setTimeout(() => window.MTUX?.openWiki(p.slug), 150); } }))].filter(x => m(x.label)).slice(0, 12);
+      return [{ group: '主题与标签', list }];
+    }
+    const groups = [];
+    if (q) groups.push({ group: '搜索', list: [{ label: `全文搜索「${q}」`, hint: 'Enter', run: () => runFts(q) }, { label: `问 AI「${q}」`, hint: '?', run: () => { showView('chat'); $('chat-input').value = q; $('btn-ask').click(); } }] });
+    groups.push({ group: '页面', list: PAGES.filter(p => m(p[1])).map(([v, l, k]) => ({ label: l, kbd: k, run: () => showView(v) })) });
+    groups.push({ group: '操作', list: COMMANDS.filter(c => m(c.label)).slice(0, q ? 6 : 5) });
+    return groups.filter(g => g.list.length);
+  }
+  async function renderCmd(q) {
+    const groups = await cmdItems(q);
+    const flat = [];
+    $('cmd-results').innerHTML = groups.map(g => `<div class="cmd-group">${escapeHtml(g.group)}</div>` + g.list.map(it => {
+      const i = flat.push(it) - 1;
+      return `<button type="button" class="cmd-item" data-idx="${i}" role="option"><span>${escapeHtml(it.label)}</span><span class="hint">${it.kbd ? `<kbd>${escapeHtml(it.kbd)}</kbd>` : escapeHtml(it.hint || '')}</span></button>`;
+    }).join('')).join('') || '<div class="empty" style="padding:20px;border:0">无匹配结果</div>';
+    cmdState = { items: flat, active: 0 };
+    setCmdActive(0);
     $('cmd-results').querySelectorAll('.cmd-item').forEach(btn => {
-      btn.onclick = () => {
-        const it = items[Number(btn.dataset.idx)];
-        closeCmd();
-        it?.run?.();
-      };
+      btn.onclick = () => { const it = flat[Number(btn.dataset.idx)]; closeCmd(); it?.run?.(); };
+      btn.onmousemove = () => setCmdActive(Number(btn.dataset.idx));
     });
+  }
+  function setCmdActive(i) {
+    const n = cmdState.items.length; if (!n) return;
+    cmdState.active = (i + n) % n;
+    $('cmd-results').querySelectorAll('.cmd-item').forEach(b => b.classList.toggle('active', Number(b.dataset.idx) === cmdState.active));
+    $('cmd-results').querySelector('.cmd-item.active')?.scrollIntoView({ block: 'nearest' });
   }
   function openCmd() {
     $('cmd-overlay')?.classList.remove('hidden');
     $('cmd-input').value = '';
+    wikiCache = null; topicCache = null;
     renderCmd('');
     setTimeout(() => $('cmd-input')?.focus(), 30);
   }
@@ -855,9 +909,12 @@ function bind() {
   $('cmd-input')?.addEventListener('input', () => renderCmd($('cmd-input').value));
   $('cmd-input')?.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeCmd();
-    if (e.key === 'Enter') {
-      const first = $('cmd-results')?.querySelector('.cmd-item');
-      first?.click();
+    if (e.key === 'ArrowDown') { e.preventDefault(); setCmdActive(cmdState.active + 1); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setCmdActive(cmdState.active - 1); }
+    if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) {
+      e.preventDefault();
+      const it = cmdState.items[cmdState.active];
+      if (it) { closeCmd(); it.run(); }
     }
   });
   window.addEventListener('keydown', (e) => {

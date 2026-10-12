@@ -544,7 +544,7 @@ function clearDemoData() {
   run(`DELETE FROM topics WHERE name LIKE '【示例】%' OR summary LIKE '%示例主题%'`);
   // Demo chat thread is always sample content — clear when leaving demo mode
   try { run(`DELETE FROM chat_messages`); } catch (_) {}
-  for (const sql of [`DELETE FROM audit_log WHERE id LIKE 'demo-%'`, `DELETE FROM llm_usage WHERE id LIKE 'demo-%'`, `DELETE FROM jobs WHERE id LIKE 'demo-%'`, `DELETE FROM memories WHERE text LIKE '【示例】%'`]) { try { run(sql); } catch (_) {} }
+  for (const sql of [`DELETE FROM audit_log WHERE id LIKE 'demo-%'`, `DELETE FROM llm_usage WHERE id LIKE 'demo-%'`, `DELETE FROM jobs WHERE id LIKE 'demo-%'`, `DELETE FROM memories WHERE text LIKE '【示例】%'`, `DELETE FROM wiki_pages WHERE slug LIKE 'demo-%'`, `DELETE FROM rollups WHERE title LIKE '【示例】%'`]) { try { run(sql); } catch (_) {} }
 }
 
 

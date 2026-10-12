@@ -25,15 +25,15 @@
         </button>
       </div>
       <div class="titlebar-right">
-        <button type="button" class="btn ghost sm" id="btn-theme" title="切换主题">主题</button>
+        <button type="button" class="icon-btn" id="btn-theme" title="切换主题" aria-label="切换主题"><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
         <div class="win-controls">
-          <button type="button" class="win-btn" id="win-min" title="最小化" aria-label="最小化">
+          <button type="button" class="win-btn" tabindex="-1" id="win-min" title="最小化" aria-label="最小化">
             <svg class="win-glyph" viewBox="0 0 10 10" aria-hidden="true"><path fill="currentColor" d="M1 4.5h8v1H1z"/></svg>
           </button>
-          <button type="button" class="win-btn" id="win-max" title="最大化" aria-label="最大化">
+          <button type="button" class="win-btn" tabindex="-1" id="win-max" title="最大化" aria-label="最大化">
             <svg class="win-glyph" viewBox="0 0 10 10" aria-hidden="true"><path fill="currentColor" d="M1.5 1.5h7v7h-7v-7zm1 1v5h5v-5h-5z"/></svg>
           </button>
-          <button type="button" class="win-btn close" id="win-close" title="关闭" aria-label="关闭">
+          <button type="button" class="win-btn close" tabindex="-1" id="win-close" title="关闭" aria-label="关闭">
             <svg class="win-glyph" viewBox="0 0 10 10" aria-hidden="true"><path fill="currentColor" d="M1.4 2.1l.7-.7L5 4.3 7.9 1.4l.7.7L5.7 5l2.9 2.9-.7.7L5 5.7 2.1 8.6l-.7-.7L4.3 5 1.4 2.1z"/></svg>
           </button>
         </div>
@@ -49,17 +49,24 @@
           <div class="brand-sub">企业知识工作台</div>
         </div>
       </div>
-      <nav id="nav">
+      <nav id="nav" aria-label="主导航">
         <div class="nav-section">
-          <div class="nav-section-label">工作区</div>
-          <button data-view="dashboard" class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="nav-label">今日总览</span></button>
-          <button data-view="timeline" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="nav-label">时间线</span></button>
-          <button data-view="knowledge" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4v15.5"/><path d="M8 4h12v13H8z"/></svg><span class="nav-label">知识库</span></button>
-          <button data-view="wiki" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6"/></svg><span class="nav-label">Wiki</span></button>
-          <button data-view="insights" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg><span class="nav-label">洞察</span></button>
-          <button data-view="chat" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg><span class="nav-label">智能问答</span></button>
+          <div class="nav-section-label">记录</div>
+          <button data-view="dashboard" title="今日总览 · Ctrl+1" class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="nav-label">今日总览</span></button>
+          <button data-view="timeline" title="时间线 · Ctrl+2" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="nav-label">时间线</span></button>
+          <button data-view="insights" title="洞察 · Ctrl+7" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg><span class="nav-label">洞察</span></button>
         </div>
         <div class="nav-section">
+          <div class="nav-section-label">知识</div>
+          <button data-view="wiki" title="Wiki · Ctrl+3" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6"/></svg><span class="nav-label">Wiki</span></button>
+          <button data-view="memory" title="记忆 · Ctrl+4" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0-6 6c0 2.2 1.2 3.7 2.5 4.8.9.8 1.5 1.7 1.5 2.7V18h4v-1.5c0-1 .6-1.9 1.5-2.7C16.8 12.7 18 11.2 18 9a6 6 0 0 0-6-6z"/><path d="M10 21h4"/></svg><span class="nav-label">记忆</span><span class="nav-badge hidden" id="nav-mem-badge"></span></button>
+          <button data-view="knowledge" title="报告 · Ctrl+5" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4v15.5"/><path d="M8 4h12v13H8z"/></svg><span class="nav-label">报告</span></button>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">助手</div>
+          <button data-view="chat" title="智能问答 · Ctrl+6" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg><span class="nav-label">智能问答</span></button>
+        </div>
+        <div class="nav-section nav-bottom">
           <div class="nav-section-label">系统</div>
           <button data-view="collect" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><circle cx="12" cy="12" r="4"/></svg><span class="nav-label">采集中心</span></button>
           <button data-view="ai" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span class="nav-label">设置</span></button>
@@ -92,9 +99,12 @@
           <p class="muted" id="view-sub">把今天的忙碌，沉淀为可复用的企业知识资产</p>
         </div>
         <div class="top-actions">
-          <button class="btn" id="btn-seed" title="开关体验示例数据">体验示例</button>
-          <button class="btn" id="btn-export">导出知识库</button>
-          <button class="btn primary" id="btn-summarize">生成本日摘要</button>
+          <button class="btn ghost" id="btn-seed" data-scope="dashboard" title="开关体验示例数据">体验示例</button>
+          <button class="btn" id="btn-export" data-scope="timeline,knowledge">导出 Markdown</button>
+          <button class="btn primary" id="btn-summarize" data-scope="dashboard,knowledge">生成本日摘要</button>
+          <button class="btn primary" id="btn-h-wiki-day" data-scope="wiki">生成今日日卷</button>
+          <button class="btn" id="btn-h-new-chat" data-scope="chat">新对话</button>
+          <button class="btn" id="btn-h-weekly" data-scope="insights">复制周回顾</button>
         </div>
       </header>
 
@@ -174,6 +184,7 @@
           </select>
           <button class="btn" id="btn-tl-search">搜索</button>
         </div>
+        <div id="tl-scrubber" class="scrubber card hidden"></div>
         <div id="timeline-list" class="timeline"></div>
       </section>
 
@@ -239,12 +250,19 @@
             <div id="wiki-body" class="doc-body muted">选择左侧页面查看。Wiki 以文档排版呈现时间卷与实体页。</div>
           </div>
           <div class="card wiki-aside">
-            <div class="card-head mem-head" style="margin-bottom:6px"><h3 style="margin:0">记忆</h3><div class="chips" id="mem-tabs"><button class="chip active" data-mstatus="active">生效 <b id="mc-active">0</b></button><button class="chip" data-mstatus="pending">待审 <b id="mc-pending">0</b></button><button class="chip" data-mstatus="rejected">驳回 <b id="mc-rejected">0</b></button></div></div>
-            <div id="memory-list" class="list"></div>
-            <h3 style="margin-top:16px">反向链接</h3>
+            <h3>反向链接说明</h3><div class="tiny" style="margin-bottom:10px">悬停正文中的 [[链接]] 查看实体卡片</div>
+            <h3 style="margin-top:6px">反向链接</h3>
             <div id="wiki-backlinks" class="backlinks"><div class="tiny">选择页面后显示关联</div></div>
           </div>
         </div>
+      </section>
+
+      <section id="view-memory" class="view hidden">
+        <div class="toolbar">
+          <div class="chips" id="mem-tabs" role="tablist"><button class="chip active" data-mstatus="active">生效 <b id="mc-active">0</b></button><button class="chip" data-mstatus="pending">待审核 <b id="mc-pending">0</b></button><button class="chip" data-mstatus="rejected">已驳回 <b id="mc-rejected">0</b></button></div>
+          <span class="tiny muted">低于置信阈值的记忆进入待审核，通过后才对问答与 MCP 可见</span>
+        </div>
+        <div class="card"><div id="memory-list" class="mem-grid"></div></div>
       </section>
 
       <section id="view-insights" class="view hidden">
@@ -280,8 +298,11 @@
 
       <section id="view-collect" class="view hidden">
         <div class="card">
-          <div class="card-head"><h3>采集器状态</h3><button class="btn sm" id="btn-refresh-status">刷新</button></div>
-          <div id="collector-status-list" class="list"></div>
+          <div class="card-head"><h3>采集器</h3><div class="row-btns"><span class="tiny muted" id="collect-saved"></span><button class="btn sm" id="btn-refresh-status">刷新状态</button><button class="btn sm" id="btn-capture2">立即截一张</button></div></div>
+          <p class="hint">默认全部关闭；开关立即生效并自动保存。</p>
+          <div class="table-wrap"><table class="data collectors"><thead><tr><th>采集项</th><th>状态</th><th>今日</th><th style="width:64px">开关</th></tr></thead><tbody id="collector-table"></tbody></table></div>
+          <div class="grid two" style="margin-top:12px"><div class="field" id="slot-interval"></div><div class="field" id="slot-idle"></div></div>
+          <div id="collector-status-list" class="hidden"></div>
         </div>
         <div class="grid two">
           <div class="card settings-group">
@@ -437,6 +458,12 @@
         <div id="ob-step2" class="ob-step hidden">
           <h1>选择要记录的内容</h1>
           <p class="muted">默认全部关闭。请主动开启你需要的项，随时可改。</p>
+          <div class="preset-cards" id="ob-presets">
+            <button type="button" class="preset-card" data-preset="light"><b>轻量</b><span>窗口 + 浏览器</span><em>最低打扰，适合先试用</em></button>
+            <button type="button" class="preset-card" data-preset="recommended"><b>推荐</b><span>+ 文档 · IDE · 下载</span><em>完整还原工作上下文</em></button>
+            <button type="button" class="preset-card" data-preset="full"><b>全面</b><span>+ 剪贴板 · 截屏识图</span><em>覆盖微信等不可读库的软件</em></button>
+          </div>
+          <details class="ob-detail"><summary>逐项调整</summary>
           <div class="collector-pick">
             <label><input type="checkbox" id="ob-c-window" /><div><div class="name">窗口与应用时间线</div><div class="desc">记录前台应用、窗口标题与停留时长</div></div></label>
             <label><input type="checkbox" id="ob-c-browser" /><div><div class="name">浏览器历史</div><div class="desc">读取 Chrome / Edge 本地历史（只读副本）</div></div></label>
@@ -446,10 +473,11 @@
             <label><input type="checkbox" id="ob-c-downloads" /><div><div class="name">下载与最近文件</div><div class="desc">Downloads 与系统最近文档（文本抽取）</div></div></label>
             <label><input type="checkbox" id="ob-c-screenshots" /><div><div class="name">定时截屏 + AI 识图</div><div class="desc">用于微信等不便读库的软件；本地保存。识图需下一步填写多模态视觉模型</div></div></label>
           </div>
+          </details>
           <p class="legal">数据默认仅保存在本机。截屏与剪贴板可能包含敏感信息，请按需开启并配置黑名单。知迹不会在未授权时采集。</p>
           <div class="row gap">
             <button class="btn ghost" id="ob-back2">上一步</button>
-            <button class="btn" id="ob-skip2">我先都关掉，稍后再开</button>
+            <button class="btn link" id="ob-skip2">我先都关掉，稍后再开</button>
             <button class="btn primary" id="ob-next2">下一步</button>
           </div>
         </div>
@@ -471,7 +499,7 @@
             <button class="btn" id="ob-skip3">稍后配置</button>
             <button class="btn primary" id="ob-next3">下一步</button>
           </div>
-          <pre id="ob-ai-result" class="result-box muted"></pre>
+          <div id="ob-ai-result" class="inline-status" role="status"></div>
         </div>
         <div id="ob-step4" class="ob-step hidden center">
           <div class="brand-mark">知</div>
@@ -518,5 +546,6 @@
   <script src="js/charts.js"></script>
   <script src="js/app.js"></script>
   <script src="js/pro.js"></script>
+  <script src="js/ux.js"></script>
 </body>
 </html>
