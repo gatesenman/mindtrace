@@ -200,15 +200,16 @@
     const sc = $('tl-scrubber');
     const d0 = day ? new Date(day + 'T00:00:00') : new Date(); d0.setHours(0, 0, 0, 0);
     const from = d0.getTime(), to = from + 86400000;
-    const items = await mt.getTimeline({ from, to, limit: 3000 });
+    const items = await mt.getTimeline({ from, to, limit: 3000, group: false, hideLow: true });
     const bins = Array.from({ length: 96 }, () => ({ n: 0, apps: {} }));
     items.forEach(a => { const i = Math.floor((a.started_at - from) / 900000); if (i >= 0 && i < 96) { bins[i].n++; const k = a.app_name || a.type; bins[i].apps[k] = (bins[i].apps[k] || 0) + 1; } });
     scrubData = { from, bins, items };
     const max = Math.max(1, ...bins.map(b => b.n));
     sc.classList.remove('hidden');
-    sc.innerHTML = `<div class="scrub-head"><b>今日活动密度</b><span class="tiny muted" id="scrub-hint">悬停查看时段摘要 · 拖动框选时段</span><span class="scrub-actions hidden" id="scrub-actions"><span class="tiny" id="scrub-range"></span><button class="btn sm" id="scrub-ask">问这段时间</button><button class="btn sm ghost" id="scrub-clear">清除选择</button></span></div>
-      <div class="scrub-track" id="scrub-track">${bins.map((b, i) => `<i style="--h:${b.n ? Math.max(10, Math.round(b.n / max * 100)) : 0}%" data-i="${i}" class="${b.n ? '' : 'z'}"></i>`).join('')}<div class="scrub-sel hidden" id="scrub-sel"></div></div>
-      <div class="scrub-axis">${[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => `<span style="left:${h / 24 * 100}%">${pad(h)}:00</span>`).join('')}</div>
+    sc.innerHTML = `<div class="scrub-head"><b>今日活动密度</b><span class="tiny muted" id="scrub-hint">悬停查看时段摘要 · 拖动框选时段</span><span class="scrub-legend">每格 15 分钟 · 平方根刻度 · 峰值 ${max} 条 · 已隐藏低价值事件</span><span class="scrub-actions hidden" id="scrub-actions"><span class="tiny" id="scrub-range"></span><button class="btn sm" id="scrub-ask">问这段时间</button><button class="btn sm ghost" id="scrub-clear">清除选择</button></span></div>
+      <div class="scrub-wrap"><div class="scrub-y"><span style="top:0">${max}</span><span style="top:50%">${Math.max(1, Math.round(Math.sqrt(max) ** 2 / 4))}</span><span style="top:100%">0</span></div>
+      <div class="scrub-track tall" id="scrub-track">${bins.map((b, i) => `<i style="--h:${b.n ? Math.max(8, Math.round(Math.sqrt(b.n / max) * 100)) : 0}%" data-i="${i}" class="${b.n ? '' : 'z'}" title="${pad(Math.floor(i / 4))}:${pad((i % 4) * 15)} · ${b.n} 条"></i>`).join('')}<div class="scrub-sel hidden" id="scrub-sel"></div></div></div>
+      <div class="scrub-axis pad">${[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => `<span style="left:${h / 24 * 100}%">${pad(h)}:00</span>`).join('')}</div>
       <div class="scrub-tip hidden" id="scrub-tip" role="tooltip"></div>`;
     const track = $('scrub-track'), tip = $('scrub-tip');
     const idxAt = (x) => { const r = track.getBoundingClientRect(); return Math.max(0, Math.min(95, Math.floor((x - r.left) / r.width * 96))); };

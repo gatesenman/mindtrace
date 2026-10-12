@@ -41,6 +41,7 @@ function toast(msg, opts = {}) {
 }
 
 function fmtMin(ms) {
+  if (ms > 0 && ms < 60000) return `${Math.max(1, Math.round(ms / 1000))}s`;
   const m = Math.max(0, Math.round((ms || 0) / 60000));
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60), r = m % 60;
@@ -322,6 +323,49 @@ function isDemoMeta(meta) {
   try { const m = typeof meta === 'string' ? JSON.parse(meta) : meta; return !!(m && m.isDemo); } catch { return false; }
 }
 
+
+/* ── 时间线：会话块 + 结构化卡片（2.3.2） ── */
+function parseMeta(m) { if (!m) return {}; if (typeof m === 'object') return m; try { return JSON.parse(m); } catch (_) { return {}; } }
+function actBodyHtml(a) {
+  const m = parseMeta(a.meta);
+  if (a.type === 'ide' && (m.workspaces || m.recent)) {
+    const ws = (m.recent || (m.workspaces || []).map(p => ({ path: p }))).slice(0, 6);
+    const cm = (m.commits || []).slice(0, 5);
+    return `<div><b>${escapeHtml(a.app_name || 'IDE')}</b> IDE 会话快照</div>
+      <div class="tl-kv"><span class="pill">${(m.workspaces || ws).length} 个工作区</span><span class="pill">${m.commitCount || 0} 次提交</span></div>
+      <ul class="tl-list">${ws.map(w => `<li><span class="muted">${escapeHtml(w.source || '')}</span> ${escapeHtml(String(w.path || '').split(/[\\/]/).filter(Boolean).pop() || w.path)} <span class="tiny muted">${escapeHtml(w.path || '')}</span></li>`).join('')}</ul>
+      ${cm.length ? `<ul class="tl-list">${cm.map(c => `<li><code>${escapeHtml(String(c.hash || '').slice(0, 7))}</code> ${escapeHtml(c.subject || '')} <span class="tiny muted">${escapeHtml(c.workspace || '')}</span></li>`).join('')}</ul>` : ''}`;
+  }
+  let content = a.content ? String(a.content) : '';
+  if (a.type === 'ide' && /^##/m.test(content)) {
+    const lines = content.split('\n');
+    return `<div><b>${escapeHtml(a.app_name || '')}</b> ${escapeHtml(a.window_title || '')}</div>` + lines.map(l => /^##\s*/.test(l) ? `<div class="tl-sub">${escapeHtml(l.replace(/^##\s*/, ''))}</div>` : /^-\s/.test(l) ? `<div class="tl-li">${escapeHtml(l.slice(2))}</div>` : '').join('');
+  }
+  const src = a.type === 'clipboard' ? (m.sourceApp ? `来自 ${escapeHtml(m.sourceApp)}` : '') : '';
+  const app = a.app_name || (a.type === 'clipboard' ? (m.sourceApp || '剪贴板') : '');
+  return `<div><b>${escapeHtml(app)}</b> ${escapeHtml(a.window_title || '')}${a._low ? ` <span class="pill low-pill">${escapeHtml(a._low)}</span>` : ''}</div>
+    <div class="meta">${escapeHtml(a.url || a.file_path || '')} ${content ? '· ' + escapeHtml(content.slice(0, 140)) : ''} ${a.duration_ms ? '· ' + fmtMin(a.duration_ms) : ''} ${src ? '· ' + src : ''}</div>`;
+}
+function sessionHtml(s) {
+  const dur = s.total_ms || (s.ended_at - s.started_at);
+  const titles = (s.titles || []).slice(0, 4).map(escapeHtml).join(' · ');
+  return `<div class="tl-item session" data-type="window" data-id="${escapeHtml(s.id)}">
+    <div class="time">${fmtTime(s.started_at)}<div class="tag" style="margin-top:6px">会话</div></div>
+    <div class="tl-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><b>${escapeHtml(s.app_name || '')}</b> · ${s.windowCount} 个窗口 · ${fmtMin(dur)}</div>
+        <button class="btn sm ghost tl-expand" type="button" aria-expanded="false">展开 ${s.items.length} 条</button></div>
+      <div class="meta">${fmtTime(s.started_at)}–${fmtTime(s.ended_at)} · ${titles}${(s.titles || []).length > 4 ? ' …' : ''}</div>
+      <div class="tl-raw hidden">${s.items.map(i => `<div class="tl-raw-row"><span class="tiny muted">${fmtTime(i.started_at)}</span> ${escapeHtml(i.window_title || '')} <span class="tiny muted">${fmtMin(i.duration_ms || 0)}</span></div>`).join('')}</div>
+    </div></div>`;
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('.tl-expand'); if (!b) return;
+  e.stopPropagation();
+  const raw = b.closest('.tl-card').querySelector('.tl-raw'); const open = raw.classList.toggle('hidden') === false;
+  b.setAttribute('aria-expanded', String(open)); b.textContent = open ? '收起' : b.textContent.replace('收起', '展开');
+  if (!open) b.textContent = `展开 ${raw.children.length} 条`;
+}, true);
+
 async function loadTimeline(opts = {}) {
   if (timelineZoom !== 'day' && !opts.forceDay) {
     const level = timelineZoom;
@@ -366,20 +410,19 @@ async function loadTimeline(opts = {}) {
     from = new Date(opts.day + 'T00:00:00').getTime();
     to = new Date(opts.day + 'T23:59:59').getTime();
   }
-  const items = await window.mindtrace.getTimeline({ q, type, from, to, limit: opts.limit || 200 });
+  const hideLow = $('tl-hide-low') ? $('tl-hide-low').checked : true;
+  const items = await window.mindtrace.getTimeline({ q, type, from, to, limit: opts.limit || 200, hideLow });
   if (opts.focusId && !items.find(x => x.id === opts.focusId)) {
     const r = await window.mindtrace.getById('activity', opts.focusId);
     if (r.ok && r.item) items.unshift(r.item);
   }
   $('timeline-list').innerHTML = items.map(a => {
+    if (a.type === 'session') return sessionHtml(a);
     const demo = isDemoMeta(a.meta);
     const hl = (opts.focusId && a.id === opts.focusId) || (highlightId === a.id);
-    return `<div class="tl-item${hl ? ' highlight' : ''}" data-type="${escapeHtml(a.type || '')}" data-id="${escapeHtml(a.id)}" id="act-${escapeHtml(a.id)}">
+    return `<div class="tl-item${hl ? ' highlight' : ''}${a._low ? ' low' : ''}" data-type="${escapeHtml(a.type || '')}" data-id="${escapeHtml(a.id)}" id="act-${escapeHtml(a.id)}">
       <div class="time">${fmtTime(a.started_at)}<div class="tag" style="margin-top:6px">${typeLabel(a.type)}</div>${demo ? '<span class="demo-tag">示例</span>' : ''}</div>
-      <div class="tl-card">
-        <div><b>${escapeHtml(a.app_name || '')}</b> ${escapeHtml(a.window_title || '')}</div>
-        <div class="meta">${escapeHtml(a.url || a.file_path || '')} ${a.content ? '· ' + escapeHtml(String(a.content).slice(0, 100)) : ''} ${a.duration_ms ? '· ' + fmtMin(a.duration_ms) : ''}</div>
-      </div>
+      <div class="tl-card">${actBodyHtml(a)}</div>
     </div>`;
   }).join('') || emptyState('没有匹配的时间线记录', '调整筛选条件，或切换到其他时间粒度。');
   if (opts.focusId) {
@@ -699,6 +742,8 @@ function bind() {
   $('btn-refresh-journal').onclick = loadDashboard;
   $('btn-tl-search').onclick = loadTimeline;
   $('tl-q').onkeydown = e => { if (e.key === 'Enter') loadTimeline(); };
+  $('tl-type').onchange = () => loadTimeline();
+  if ($('tl-hide-low')) $('tl-hide-low').onchange = () => loadTimeline();
   document.querySelectorAll('#kind-chips .chip').forEach(ch => {
     ch.onclick = () => {
       document.querySelectorAll('#kind-chips .chip').forEach(x => x.classList.remove('active'));

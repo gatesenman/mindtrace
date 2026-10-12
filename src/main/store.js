@@ -282,6 +282,14 @@ function setInsertPolicy(fn) { insertPolicy = typeof fn === 'function' ? fn : nu
 function setMemoryThreshold(v) { if (typeof v === 'number') memoryThreshold = v; }
 
 function insertActivity(row) {
+  try {
+    const noise = require('../core/noise');
+    const m = row.meta && typeof row.meta === 'object' ? row.meta : {};
+    if (!m.isDemo && !m.demo) {
+      if (noise.classify(row).drop) return null;
+      if (noise.seenRecently(row, row.started_at || Date.now())) return null;
+    }
+  } catch (_) {}
   if (insertPolicy) {
     try { row = insertPolicy(row); } catch (_) {}
     if (!row) return null;
@@ -443,7 +451,7 @@ function getTodayStats() {
   const yTo = from;
 
   const raw = all(
-    `SELECT type, app_name, process_name, window_title, duration_ms, started_at FROM activities WHERE started_at>=?`,
+    `SELECT type, app_name, process_name, window_title, duration_ms, started_at, ended_at, content FROM activities WHERE started_at>=?`,
     [from]
   );
   const byApp = new Map();
@@ -451,8 +459,10 @@ function getTodayStats() {
   const hourly = new Array(24).fill(0);
   let activityCount = 0;
   let browserCount = 0;
+  const noise = require('../core/noise');
   for (const row of raw) {
     if (isSelfApp({ app: row.app_name, process: row.process_name, title: row.window_title })) continue;
+    { const c = noise.classify(row); if (c.drop || c.low) continue; }
     activityCount += 1;
     if (row.type === 'browser') browserCount += 1;
     const name = friendlyAppName(row.app_name, row.process_name, row.window_title);

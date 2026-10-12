@@ -56,7 +56,7 @@ function start(opts = {}) {
   else collectorStatus.disabled('window');
   if (cols.browser) safe('browser', () => browserHistory.start({ getConfig, intervalMs: 60000 }));
   else collectorStatus.disabled('browser');
-  if (cols.clipboard) safe('clipboard', () => clipboardCollector.start({ getConfig, clipboard, intervalMs: 1500 }));
+  if (cols.clipboard) safe('clipboard', () => clipboardCollector.start({ getConfig, clipboard, windowTracker, BrowserWindow, intervalMs: 1500 }));
   else collectorStatus.disabled('clipboard');
   if (cols.documents) safe('documents', () => documents.start({ getConfig }));
   else collectorStatus.disabled('documents');

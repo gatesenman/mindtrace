@@ -110,7 +110,7 @@ async function tick() {
     app: commits.length ? 'Git/IDE' : (recent[0]?.source || 'IDE'),
     title: `IDE 会话快照 · ${paths.length} 个工作区 · ${commits.reduce((n, c) => n + c.commits.length, 0)} 提交`,
     content,
-    meta: { workspaces: paths, commitCount: commits.reduce((n, c) => n + c.commits.length, 0) },
+    meta: { workspaces: paths, recent: recent.slice(0, 10).map(r => ({ source: r.source, path: uriToPath(r.uri) || r.uri })), commits: commits.flatMap(c => c.commits.slice(0, 10).map(x => ({ workspace: c.workspace, hash: x.hash, subject: x.subject }))).slice(0, 20), commitCount: commits.reduce((n, c) => n + c.commits.length, 0) },
     source: 'ide'
   });
   status.ok('ide', `工作区 ${paths.length}`);

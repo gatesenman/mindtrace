@@ -294,6 +294,7 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    if (require('./devShot').arg()) { require('./devShot').shoot(mainWindow); return; }
     if (process.argv.includes('--screenshot-tour')) {
       // fresh onboarding for tour
       runScreenshotTour().catch(e => { console.error(e); app.quit(); });
@@ -838,7 +839,13 @@ function registerIpc() {
   ipcMain.handle('get-timeline', (_e, opts = {}) => {
     const from = opts.from || (Date.now() - 86400000);
     const to = opts.to || Date.now();
-    return store.searchActivities({ q: opts.q, type: opts.type, from, to, limit: opts.limit || 200 });
+    const noise = require('../core/noise');
+    const lim = opts.limit || 200;
+    const hideLow = opts.hideLow !== false;
+    let rows = store.searchActivities({ q: opts.q, type: opts.type, from, to, limit: hideLow ? Math.min(lim * 4, 5000) : lim });
+    rows = noise.filter(rows, { hideLow });
+    if (opts.group !== false && !opts.q) rows = noise.sessionize(rows);
+    return rows.slice(0, lim);
   });
   ipcMain.handle('get-cards', (_e, opts = {}) => {
     if (opts.kind) return store.all(`SELECT * FROM knowledge_cards WHERE kind=? ORDER BY updated_at DESC LIMIT 200`, [opts.kind]);
@@ -1034,11 +1041,13 @@ app.whenReady().then(async () => {
     config.authorized = false;
     saveConfig(config);
   }
+  require('./devShot').prepareConfig(config);
   if (!config.api.token) {
     config.api.token = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
     saveConfig(config);
   }
   await store.initStore();
+  require('./devShot').seed(store);
   pro.init({ getConfig: () => config });
   try { v23.schema.migrate(); } catch (e) { appendLog('ERROR', 'v23-migrate', e); }
   v23.pipeline.setConfigGetter(() => config);

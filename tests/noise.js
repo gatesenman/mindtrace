@@ -1,0 +1,28 @@
+// 噪声过滤单元测试（纯 node，真实噪声样本）
+const noise = require('../src/core/noise');
+const fixture = require('./fixtures/noisy-day');
+const base = new Date('2026-10-12T00:00:00+08:00').getTime();
+const rows = fixture(base); const now = base + 86400000;
+let pass = 0, fail = 0; const t = (n, ok, i = '') => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 'FAIL ') + n + (i ? ' — ' + i : '')); };
+const by = (pred) => rows.filter(pred);
+t('任务切换/开始/搜索/通知/锁屏 → drop', by(r => /任务切换|开始|搜索|新通知|锁屏/.test(r.window_title || '')).every(r => noise.classify(r, { now }).drop));
+t('知迹自身窗口 → drop', noise.classify(by(r => r.app_name === 'MindTrace')[0], { now }).drop);
+t('知迹内部 JSON 剪贴板 → drop', noise.classify(by(r => /purpose/.test(r.content || ''))[0]).drop);
+t('短复制 "ok" → low', noise.classify(by(r => r.content === 'ok')[0]).low);
+t('单标识符 "deepseek-v4-pro" → low', noise.classify(by(r => r.content === 'deepseek-v4-pro')[0]).low);
+t('有价值复制保留', !noise.classify(by(r => /会议纪要/.test(r.content || ''))[0]).low);
+t('仅窗口名界面文本 → low', noise.classify(by(r => r.window_title === 'grokweb')[0]).low);
+t('有正文界面文本保留', !noise.classify(by(r => r.type === 'uia' && r.content)[0]).low);
+t('驻留 <10s 窗口 → low', noise.classify({ type: 'window', duration_ms: 1500, ended_at: 1, started_at: 0 }, { now }).low);
+t('进行中窗口不判低价值', !noise.classify({ type: 'window', duration_ms: 0, ended_at: null, started_at: now - 5000 }, { now }).low);
+const f = noise.filter(rows, { hideLow: true, now });
+t('60s 内重复复制去重', f.filter(r => /会议纪要/.test(r.content || '')).length === 1);
+t('过滤后无噪声', !f.some(r => /任务切换|purpose|grokweb|锁屏/.test(`${r.window_title}${r.content}`)), `${rows.length} → ${f.length}`);
+const s = noise.sessionize(f);
+const wx = s.find(x => x.type === 'session' && x.app_name === '微信');
+t('微信连切合并为会话', !!wx && wx.windowCount === 3 && wx.items.length >= 3, wx ? `微信 · ${wx.windowCount} 个窗口 · ${Math.round(wx.total_ms / 60000)}m` : 'none');
+t('中间切到其他应用则不合并', s.filter(x => x.app_name === 'VS Code' && x.type === 'window').length === 2);
+t('desc 顺序保持', (() => { const d = noise.sessionize(noise.filter([...rows].reverse(), { now })); return d[0].started_at >= d[d.length - 1].started_at; })());
+const all = noise.filter(rows, { hideLow: false, now });
+t('关闭“隐藏低价值”仍去掉 drop 类', !all.some(r => /任务切换|purpose/.test(`${r.window_title}${r.content}`)) && all.some(r => r.content === 'ok'));
+console.log(`noise: ${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

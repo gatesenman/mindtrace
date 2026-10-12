@@ -134,11 +134,12 @@ async function tick() {
 
     const fg = await getForeground();
     if (!fg) { status.ok('window', '无前台窗口'); return; }
+    lastFg = { ...fg, self: isSelfApp(fg), at: Date.now() };
     if (isSelfApp(fg)) {
       if (current) {
         const ended = Date.now();
         const dur = ended - current.startedAt;
-        if (dur < ((cfg.privacy?.minDwellSec || 3) * 1000)) {
+        if (dur < ((cfg.privacy?.minDwellSec || 10) * 1000)) {
           try { store.run(`DELETE FROM activities WHERE id=?`, [current.id]); } catch (_) {}
         } else {
           store.updateActivityEnd(current.id, ended, dur);
@@ -166,7 +167,7 @@ async function tick() {
     }
 
     const now = Date.now();
-    const minDwellMs = (cfg.privacy?.minDwellSec || 3) * 1000;
+    const minDwellMs = (cfg.privacy?.minDwellSec || 10) * 1000;
     if (current) {
       const dur = now - current.startedAt;
       if (dur < minDwellMs) {
@@ -183,7 +184,8 @@ async function tick() {
       window_title: fg.title,
       meta: { pid: fg.pid }
     });
-    current = { id, app: fg.app, process: fg.process, title: fg.title, startedAt: now };
+    current = id ? { id, app: fg.app, process: fg.process, title: fg.title, startedAt: now } : null;
+    if (!current) { status.ok('window', '已忽略系统切换'); return; }
     onChange({ type: 'window', current });
     status.ok('window', current.app || '前台');
   } catch (e) {
@@ -210,6 +212,8 @@ function stop() {
   }
 }
 
+let lastFg = null;
 function getCurrent() { return current; }
+function getLastForeground() { return lastFg; }
 
-module.exports = { start, stop, getCurrent, getForeground, getIdleSeconds };
+module.exports = { start, stop, getCurrent, getLastForeground, getForeground, getIdleSeconds };

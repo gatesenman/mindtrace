@@ -6,6 +6,8 @@ const { redactText } = require('../privacy/redact');
 const { isSelfApp } = require('../main/appNames');
 
 function formatActivities(rows, limit = 80) {
+  // 2.3.2：先去噪（任务切换/过短窗口/过短复制/仅窗口名），不浪费 token
+  try { rows = require('../core/noise').filter(rows, { hideLow: true }); } catch (_) {}
   return rows.filter(a => !isSelfApp({ app: a.app_name, process: a.process_name, title: a.window_title }))
     .slice(0, limit).map(a => {
     const t = dayjs(a.started_at).format('HH:mm');
@@ -168,7 +170,7 @@ async function askHistory(cfg, question) {
 
 async function clusterTopics(cfg) {
   const cards = store.all(`SELECT id, title, kind, summary, tags FROM knowledge_cards ORDER BY updated_at DESC LIMIT 80`);
-  const acts = store.all(`SELECT app_name, window_title, type FROM activities ORDER BY started_at DESC LIMIT 80`);
+  const acts = require('../core/noise').filter(store.all(`SELECT app_name, process_name, window_title, type, content, started_at, ended_at, duration_ms FROM activities ORDER BY started_at DESC LIMIT 240`)).slice(0, 80);
   if (!cards.length && !acts.length) return [];
   const payload = JSON.stringify({ cards, activities: acts }, null, 0).slice(0, 12000);
   const { content } = await chatCompletion(cfg, [

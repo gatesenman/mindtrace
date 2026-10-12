@@ -84,6 +84,8 @@ async function tick(windowTracker) {
     text = '';
   }
   if (!text && !title) return;
+  // 只有窗口名、没有足够正文 → 不记录（2.3.2）
+  if (text.replace(title, '').replace(/\s+/g, '').length < require('../core/noise').UIA_MIN_LEN) return;
   const hash = `${cur?.process || ''}|${title}|${text.slice(0, 200)}`;
   if (hash === lastHash) return;
   lastHash = hash;

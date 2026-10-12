@@ -11,7 +11,8 @@ function category(app) { for (const [re, c] of CAT) if (re.test(app || '')) retu
 function computeBlocks(from, to) {
   const rows = store.all(`SELECT id,type,app_name,window_title,url,started_at,COALESCE(ended_at, started_at+duration_ms, started_at+60000) ended_at FROM activities WHERE started_at>=? AND started_at<? AND type<>'clipboard' ORDER BY started_at`, [from, to]);
   const blocks = []; let cur = null;
-  for (const a of rows) {
+  const noise = require('../core/noise');
+  for (const a of rows.filter(r => !noise.classify(r).drop)) {
     if (a.type === 'idle') { if (cur) { blocks.push(cur); cur = null; } continue; }
     const meet = isMeeting(a);
     const key = meet ? 'meeting' : category(a.app_name) + '|' + (a.app_name || '');

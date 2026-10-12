@@ -291,7 +291,7 @@ function restore(filePath, passphrase, { mode = 'replace' } = {}) {
 
 /* ───────────── Analytics ───────────── */
 function analytics(from, to) {
-  const rows = store.all(`SELECT type, app_name, process_name, window_title, started_at, duration_ms, url FROM activities WHERE started_at>=? AND started_at<? ORDER BY started_at ASC`, [from, to]);
+  const rows = store.all(`SELECT type, app_name, process_name, window_title, started_at, duration_ms, url FROM activities WHERE started_at>=? AND started_at<? ORDER BY started_at ASC`, [from, to]).filter(r => !require('../core/noise').classify(r).drop);
   const { friendlyAppName } = require('../main/appNames');
   const SESSION_GAP = 5 * 60000, DEEP_MIN = 25 * 60000;
   let switches = 0, prev = null;

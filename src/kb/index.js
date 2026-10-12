@@ -117,7 +117,7 @@ function ingestNew({ limit = 20000 } = {}) {
   let touched = [];
   const chunks = [];
   store.transaction(() => {
-    touched = normalizeActivities(rows);
+    touched = normalizeActivities(require('../core/noise').filter(rows, { hideLow: true }));
     for (const d of touched) chunks.push(...chunkDocument(d));
     const last = rows[rows.length - 1]; U.kvSet('kb_cursor2', { c: last.created_at, r: last.rid });
   });

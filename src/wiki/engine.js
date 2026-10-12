@@ -26,7 +26,7 @@ async function buildHourRollup(cfg, hourPeriodKey) {
   const start = dayjs(d).hour(h).minute(0).second(0).millisecond(0);
   const from = start.valueOf();
   const to = start.add(1, 'hour').valueOf();
-  const acts = store.all(`SELECT * FROM activities WHERE started_at>=? AND started_at<? ORDER BY started_at ASC LIMIT 200`, [from, to]);
+  const acts = require('../core/noise').filter(store.all(`SELECT * FROM activities WHERE started_at>=? AND started_at<? ORDER BY started_at ASC LIMIT 800`, [from, to])).slice(0, 200);
   if (!acts.length) return null;
   let summary;
   if (cfg?.ai?.baseUrl) {
@@ -63,7 +63,7 @@ async function buildHourRollup(cfg, hourPeriodKey) {
 async function buildDayRollup(cfg, day) {
   const from = dayjs(day).startOf('day').valueOf();
   const to = dayjs(day).endOf('day').valueOf();
-  const acts = store.all(`SELECT * FROM activities WHERE started_at>=? AND started_at<=? ORDER BY started_at ASC LIMIT 400`, [from, to]);
+  const acts = require('../core/noise').filter(store.all(`SELECT * FROM activities WHERE started_at>=? AND started_at<=? ORDER BY started_at ASC LIMIT 1600`, [from, to])).slice(0, 400);
   const hours = store.getRollups('hour', `${day}-00`, `${day}-23`);
   let summary_md;
   if (cfg?.ai?.baseUrl && acts.length) {
