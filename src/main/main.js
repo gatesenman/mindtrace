@@ -81,7 +81,7 @@ async function runScreenshotTour() {
   await wait(1200);
   setDemoMode(true);
   await mainWindow.webContents.executeJavaScript(`window.mindtrace && (async()=>{const s=document.querySelector('[data-view=dashboard]'); s&&s.click(); await new Promise(r=>setTimeout(r,400));})()`);
-  await wait(800);
+  await wait(1200);
   await capture('05-dashboard.png');
   // Timeline with zoom levels
   await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view=timeline]')?.click()`);
@@ -142,13 +142,15 @@ async function runScreenshotTour() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 840,
-    minWidth: 960,
-    minHeight: 640,
+    width: 1320,
+    height: 860,
+    minWidth: 1024,
+    minHeight: 680,
     title: '知迹 MindTrace',
-    backgroundColor: '#F6F7F9',
+    backgroundColor: '#F4F5F7',
     show: false,
+    frame: false,
+    titleBarStyle: 'hidden',
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
@@ -376,6 +378,15 @@ function setDemoMode(on) {
 }
 
 function registerIpc() {
+  ipcMain.handle('window-minimize', () => { mainWindow?.minimize(); });
+  ipcMain.handle('window-maximize', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+  });
+  ipcMain.handle('window-close', () => { mainWindow?.close(); });
+  ipcMain.handle('get-app-version', () => app.getVersion());
+
   ipcMain.handle('get-state', () => ({
     config: {
       ...config,

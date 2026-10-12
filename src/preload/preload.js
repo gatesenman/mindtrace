@@ -39,5 +39,9 @@ contextBridge.exposeInMainWorld('mindtrace', {
     const fn = (_e, data) => cb(data);
     ipcRenderer.on('status', fn);
     return () => ipcRenderer.removeListener('status', fn);
-  }
+  },
+  windowMinimize: () => ipcRenderer.invoke('window-minimize'),
+  windowMaximize: () => ipcRenderer.invoke('window-maximize'),
+  windowClose: () => ipcRenderer.invoke('window-close'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version')
 });

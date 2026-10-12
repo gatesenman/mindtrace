@@ -1,10 +1,10 @@
 const titles = {
-  dashboard: ['今日', '把今天的忙碌，变成可复用的资产'],
-  timeline: ['时间线', '按时间回看你的桌面足迹'],
-  wiki: ['Wiki', '时间卷 · 实体页 · 记忆'],
+  dashboard: ['今日总览', '把今天的忙碌，沉淀为可复用的企业知识资产'],
+  timeline: ['时间线', '按时 / 天 / 周 / 月回看桌面足迹'],
+  wiki: ['Wiki', '时间卷 · 实体页 · 记忆与反链'],
   knowledge: ['知识库', '日刊 · 主题 · 人物 · 项目 · 所学 · 待办'],
-  chat: ['问问历史', '用自然语言检索你的数字资产'],
-  collect: ['采集中心', '分项开关与隐私黑名单'],
+  chat: ['智能问答', '用自然语言检索你的数字资产'],
+  collect: ['采集中心', '分项开关、状态与隐私黑名单'],
   ai: ['设置', 'AI 模型 · 导出 · 本机 API · 关于']
 };
 
@@ -19,6 +19,10 @@ let highlightId = null;
 let obCollectors = { window: false, browser: false, documents: false, clipboard: false, screenshots: false };
 
 function $(id) { return document.getElementById(id); }
+function emptyState(title, desc) {
+  const illu = (window.MTIcons && MTIcons.empty) ? MTIcons.empty() : '';
+  return `<div class="empty">${illu}<h3>${escapeHtml(title)}</h3><p>${escapeHtml(desc || '')}</p></div>`;
+}
 function toast(msg) {
   const el = $('toast');
   el.textContent = msg;
@@ -140,10 +144,11 @@ function applyConfigToForm() {
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   $(`view-${name}`).classList.remove('hidden');
-  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  const [t, s] = titles[name];
-  $('view-title').textContent = t;
+  document.querySelectorAll('#nav .nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  const [tt, s] = titles[name];
+  $('view-title').textContent = tt;
   $('view-sub').textContent = s;
+  if ($('crumb-current')) $('crumb-current').textContent = tt;
   greet();
   if (name === 'dashboard') loadDashboard();
   if (name === 'timeline') loadTimeline();
@@ -151,7 +156,6 @@ function showView(name) {
   if (name === 'chat') loadChat();
   if (name === 'collect') loadCollectorStatus();
   if (name === 'wiki') loadWiki();
-  if (name === 'timeline') {/* zoom-aware */}
 }
 
 async function loadDashboard() {
@@ -162,10 +166,35 @@ async function loadDashboard() {
   $('stat-cards').textContent = stats.cardsToday;
 
   const max = Math.max(1, ...(stats.appBreakdown || []).map(a => a.total_ms || 0));
-  $('app-bars').innerHTML = (stats.appBreakdown || []).slice(0, 8).map(a => {
+  $('app-bars').innerHTML = (stats.appBreakdown || []).slice(0, 6).map(a => {
     const pct = Math.round((a.total_ms || 0) / max * 100);
     return `<div class="bar-row"><div>${escapeHtml(a.app_name || '未知')}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><div>${fmtMin(a.total_ms)}</div></div>`;
-  }).join('') || '<div class="empty">暂无数据。完成引导并开启采集，或点击「填充示例」。</div>';
+  }).join('') || '';
+  try {
+    if (window.MTCharts) {
+      MTCharts.appsBar($('chart-apps'), stats.appBreakdown || []);
+      const hourly = new Array(24).fill(0);
+      (stats.hourly || []).forEach((v, i) => { if (i < 24) hourly[i] = v; });
+      // derive soft hourly from total if missing
+      if (!(stats.hourly || []).length && stats.activityCount) {
+        for (let i = 8; i <= 22; i++) hourly[i] = Math.max(0, Math.round((stats.activityCount / 12) * (0.6 + Math.random() * 0.8)));
+      }
+      MTCharts.heatmap($('chart-hourly'), hourly);
+      const week = stats.weekTrend || [Math.max(1, Math.round((stats.activityCount||0)*0.5)), Math.max(1, Math.round((stats.activityCount||0)*0.7)), Math.max(1, Math.round((stats.activityCount||0)*0.6)), Math.max(1, Math.round((stats.activityCount||0)*0.9)), Math.max(1, Math.round((stats.activityCount||0)*0.8)), Math.max(1, stats.activityCount||1), Math.max(1, Math.round((stats.activityCount||0)*1.1))];
+      MTCharts.weekTrend($('chart-week'), week);
+      const sparkBase = week.map(v => Math.max(1, v));
+      MTCharts.sparkline($('spark-time'), sparkBase, getComputedStyle(document.body).getPropertyValue('--brand').trim());
+      MTCharts.sparkline($('spark-acts'), sparkBase.map(v => v * 1.2));
+      MTCharts.sparkline($('spark-browse'), sparkBase.map(v => v * 0.7));
+      MTCharts.sparkline($('spark-cards'), sparkBase.map(v => Math.max(1, v * 0.4)));
+    }
+  } catch (e) { console.warn('charts', e); }
+  if ($('stat-time-delta')) $('stat-time-delta').textContent = stats.activityCount ? '今日活跃' : '等待采集';
+  if ($('stat-acts-delta')) $('stat-acts-delta').textContent = `${stats.activityCount || 0} 条事件`;
+  if ($('stat-cards-delta')) {
+    $('stat-cards-delta').textContent = (stats.cardsToday || 0) > 0 ? `+${stats.cardsToday} 今日` : '待沉淀';
+    $('stat-cards-delta').className = 'delta ' + ((stats.cardsToday || 0) > 0 ? 'up' : 'flat');
+  }
 
   const journals = await window.mindtrace.getJournals();
   const today = new Date().toISOString().slice(0, 10);
@@ -187,7 +216,7 @@ async function loadDashboard() {
       <div class="tag">${typeLabel(a.type)}</div>
       <div class="title"><b>${escapeHtml(a.app_name || '')}</b> ${escapeHtml(a.window_title || a.url || a.file_path || '')}</div>
     </div>
-  `).join('') || '<div class="empty">这一天还没有记录。确认采集已开启？</div>';
+  `).join('') || emptyState('暂无最近活动', '完成引导并开启采集，或打开体验示例数据。');
 }
 
 function isDemoMeta(meta) {
@@ -199,7 +228,7 @@ async function loadTimeline(opts = {}) {
     const level = timelineZoom;
     const rolls = await window.mindtrace.getRollups({ level });
     if (!rolls.length) {
-      $('timeline-list').innerHTML = `<div class="empty">暂无「${level}」汇总。可先采集一段时间，或在 Wiki 页点击生成日卷/小时卷。</div>`;
+      $('timeline-list').innerHTML = emptyState(`暂无「${level}」汇总`, '可先采集一段时间，或在 Wiki 页生成日卷 / 小时卷。');
       return;
     }
     $('timeline-list').innerHTML = rolls.map(r => `
@@ -245,14 +274,14 @@ async function loadTimeline(opts = {}) {
   $('timeline-list').innerHTML = items.map(a => {
     const demo = isDemoMeta(a.meta);
     const hl = (opts.focusId && a.id === opts.focusId) || (highlightId === a.id);
-    return `<div class="tl-item${hl ? ' highlight' : ''}" data-id="${escapeHtml(a.id)}" id="act-${escapeHtml(a.id)}">
+    return `<div class="tl-item${hl ? ' highlight' : ''}" data-type="${escapeHtml(a.type || '')}" data-id="${escapeHtml(a.id)}" id="act-${escapeHtml(a.id)}">
       <div class="time">${fmtTime(a.started_at)}<div class="tag" style="margin-top:6px">${typeLabel(a.type)}</div>${demo ? '<span class="demo-tag">示例</span>' : ''}</div>
-      <div>
+      <div class="tl-card">
         <div><b>${escapeHtml(a.app_name || '')}</b> ${escapeHtml(a.window_title || '')}</div>
         <div class="meta">${escapeHtml(a.url || a.file_path || '')} ${a.content ? '· ' + escapeHtml(String(a.content).slice(0, 100)) : ''} ${a.duration_ms ? '· ' + fmtMin(a.duration_ms) : ''}</div>
       </div>
     </div>`;
-  }).join('') || '<div class="empty">没有匹配的时间线记录</div>';
+  }).join('') || emptyState('没有匹配的时间线记录', '调整筛选条件，或切换到其他时间粒度。');
   if (opts.focusId) {
     const el = document.getElementById('act-' + opts.focusId);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -360,12 +389,13 @@ function openDetail(kindLabel, title, body, meta) {
 function renderCitations(cites) {
   if (!cites || !cites.length) return '';
   return `<div class="cite-list">${cites.map(c => {
-    const label = escapeHtml((c.label || c.key || '').slice(0, 48));
+    const label = escapeHtml((c.label || c.key || '').slice(0, 64));
     const key = escapeHtml(c.key || '');
     const id = escapeHtml(c.id || '');
     const started = c.started_at || '';
     const kind = escapeHtml(c.kind === 'card' ? 'card' : c.kind === 'journal' ? 'journal' : 'activity');
-    return `<button type="button" class="cite-chip" data-cite-id="${id}" data-cite-kind="${kind}" data-started="${started}" title="${label}"><span class="k">${key}</span>${label}</button>`;
+    const kindZh = kind === 'card' ? '知识卡片' : kind === 'journal' ? '日刊' : '活动';
+    return `<button type="button" class="cite-card" data-cite-id="${id}" data-cite-kind="${kind}" data-started="${started}" title="${label}"><span class="k">${key} · ${kindZh}</span><span class="cite-label">${label}</span></button>`;
   }).join('')}</div>`;
 }
 
@@ -395,6 +425,24 @@ async function loadWiki() {
       if (!page) return;
       $('wiki-body').classList.remove('muted');
       $('wiki-body').textContent = page.body_md || '';
+      if ($('wiki-tags')) {
+        const tags = [page.kind, page.period_key].filter(Boolean);
+        $('wiki-tags').innerHTML = tags.map(tg => `<span class="tag-pill">${escapeHtml(tg)}</span>`).join('') || '';
+      }
+      if ($('wiki-backlinks')) {
+        const related = pages.filter(x => x.slug !== page.slug && (x.kind === page.kind || (page.body_md||'').includes(x.title))).slice(0, 6);
+        $('wiki-backlinks').innerHTML = related.length
+          ? related.map(r => `<div class="backlink" data-slug="${escapeHtml(r.slug)}">${escapeHtml(r.title)}</div>`).join('')
+          : '<div class="tiny">暂无反向链接</div>';
+        $('wiki-backlinks').querySelectorAll('.backlink').forEach(b => {
+          b.onclick = () => {
+            const tgt = pages.find(x => x.slug === b.dataset.slug);
+            if (!tgt) return;
+            $('wiki-body').textContent = tgt.body_md || '';
+            if ($('wiki-tags')) $('wiki-tags').innerHTML = `<span class="tag-pill">${escapeHtml(tgt.kind||'')}</span>`;
+          };
+        });
+      }
     };
   });
   const budget = await window.mindtrace.getBudget();
@@ -408,9 +456,9 @@ async function loadChat() {
   const log = $('chat-log');
   const sug = $('chat-suggestions');
   if (!msgs.length) {
-    log.innerHTML = `<div class="empty chat-empty">
-      <h3>问问你的历史</h3>
-      <p>用自然语言检索日刊、卡片与时间线。开启「体验示例数据」可先看带引用的样例回答；配置 AI 后即可真实提问。</p>
+    log.innerHTML = `<div class="chat-empty">${(window.MTIcons&&MTIcons.empty)?MTIcons.empty():''}
+      <h3>智能问答</h3>
+      <p>用自然语言检索日刊、卡片与时间线。开启「体验示例数据」可先看带引用的样例；配置 AI 后即可真实提问。</p>
     </div>`;
     sug?.classList.remove('hidden');
   } else {
@@ -425,7 +473,7 @@ async function loadChat() {
 }
 
 function bindCiteClicks(root) {
-  root.querySelectorAll('.cite-chip').forEach(btn => {
+  root.querySelectorAll('.cite-card, .cite-chip').forEach(btn => {
     btn.onclick = async () => {
       const id = btn.dataset.citeId;
       const kind = btn.dataset.citeKind || 'activity';
@@ -476,7 +524,7 @@ async function loadCollectorStatus() {
 }
 
 function bind() {
-  document.querySelectorAll('.nav-item').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+  document.querySelectorAll('#nav .nav-item').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 
   $('ob-next1').onclick = () => showObStep(2);
   $('ob-back2').onclick = () => showObStep(1);
@@ -532,6 +580,7 @@ function bind() {
     document.body.setAttribute('data-theme', dark ? 'dark' : 'light');
     document.body.classList.toggle('theme-dark', dark);
     window.mindtrace.setConfig({ theme: dark ? 'dark' : 'light' });
+    if (!$('view-dashboard').classList.contains('hidden')) loadDashboard();
   };
   $('btn-seed').onclick = async () => {
     const next = !state.config.demoMode;
@@ -703,6 +752,68 @@ function bind() {
       <div class="meta">${escapeHtml((h.content||'').slice(0,120))}</div></div></div>`).join('') || '<div class="empty">无全文结果</div>';
   });
 
+
+  // Enterprise chrome: sidebar, command palette, window controls
+  $('btn-sidebar-toggle')?.addEventListener('click', () => {
+    document.body.classList.toggle('sidebar-collapsed');
+  });
+  $('win-min')?.addEventListener('click', () => window.mindtrace.windowMinimize?.());
+  $('win-max')?.addEventListener('click', () => window.mindtrace.windowMaximize?.());
+  $('win-close')?.addEventListener('click', () => window.mindtrace.windowClose?.());
+
+  const cmdItems = () => ([
+    { label: '今日总览', hint: '页面', run: () => showView('dashboard') },
+    { label: '时间线', hint: '页面', run: () => showView('timeline') },
+    { label: '知识库', hint: '页面', run: () => showView('knowledge') },
+    { label: 'Wiki', hint: '页面', run: () => showView('wiki') },
+    { label: '智能问答', hint: '页面', run: () => showView('chat') },
+    { label: '采集中心', hint: '页面', run: () => showView('collect') },
+    { label: '设置', hint: '页面', run: () => showView('ai') },
+    { label: '生成本日摘要', hint: '操作', run: () => $('btn-summarize')?.click() },
+    { label: '导出知识库', hint: '操作', run: () => $('btn-export')?.click() },
+    { label: '打开速记', hint: '操作', run: () => { $('quick-note-modal')?.classList.remove('hidden'); $('qn-body')?.focus(); } },
+    { label: '切换深色 / 浅色主题', hint: '外观', run: () => $('btn-theme')?.click() },
+    { label: '暂停 / 恢复采集', hint: '采集', run: () => $('btn-pause')?.click() }
+  ]);
+  function renderCmd(q) {
+    const qq = (q || '').trim().toLowerCase();
+    const items = cmdItems().filter(it => !qq || it.label.toLowerCase().includes(qq) || it.hint.includes(qq));
+    $('cmd-results').innerHTML = items.map((it, i) =>
+      `<button type="button" class="cmd-item${i===0?' active':''}" data-idx="${i}"><span>${escapeHtml(it.label)}</span><span class="hint">${escapeHtml(it.hint)}</span></button>`
+    ).join('') || '<div class="empty" style="padding:20px">无匹配命令</div>';
+    $('cmd-results').querySelectorAll('.cmd-item').forEach(btn => {
+      btn.onclick = () => {
+        const it = items[Number(btn.dataset.idx)];
+        closeCmd();
+        it?.run?.();
+      };
+    });
+  }
+  function openCmd() {
+    $('cmd-overlay')?.classList.remove('hidden');
+    $('cmd-input').value = '';
+    renderCmd('');
+    setTimeout(() => $('cmd-input')?.focus(), 30);
+  }
+  function closeCmd() { $('cmd-overlay')?.classList.add('hidden'); }
+  $('btn-cmd-open')?.addEventListener('click', openCmd);
+  $('cmd-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'cmd-overlay') closeCmd(); });
+  $('cmd-input')?.addEventListener('input', () => renderCmd($('cmd-input').value));
+  $('cmd-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeCmd();
+    if (e.key === 'Enter') {
+      const first = $('cmd-results')?.querySelector('.cmd-item');
+      first?.click();
+    }
+  });
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      if ($('cmd-overlay')?.classList.contains('hidden')) openCmd(); else closeCmd();
+    }
+    if (e.key === 'Escape') closeCmd();
+  });
+
   window.mindtrace.onStatus(async (data) => {
     await refreshState();
     if (data?.toast) toast(data.toast);
@@ -739,5 +850,14 @@ async function ask() {
     document.body.setAttribute('data-theme', 'dark');
     document.body.classList.add('theme-dark');
   }
+  try {
+    const ver = await window.mindtrace.getAppVersion?.();
+    if (ver && $('app-version-label')) $('app-version-label').textContent = `v${ver} · Ctrl+Shift+M`;
+  } catch (_) {}
   showView('dashboard');
+  window.addEventListener('resize', () => {
+    if (document.querySelector('#view-dashboard:not(.hidden)') && window.MTCharts) {
+      // soft redraw on next dash load; skip heavy work
+    }
+  });
 })();

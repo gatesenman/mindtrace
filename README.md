@@ -1,4 +1,4 @@
-# 知迹 MindTrace 2.0
+# 知迹 MindTrace 2.1
 
 把每天散落在浏览器、IDE、文档、下载、截屏和各个窗口里的操作，**经你授权后**整理成可复用的个人数字资产，并沉淀为 **LLM 维护的 Wiki + 记忆库**。
 
@@ -8,11 +8,12 @@
 - **时间线缩放**：小时 / 天 / 周 / 月 汇总卷
 - **LLM Wiki**：时间卷 · 实体页 · 记忆条目（事实/偏好/决策/待办），可导出 Obsidian
 - **可被其他 AI 使用**：本机 HTTP API + MCP Server（`api.port+1`）
+- **企业级界面**：自定义标题栏、可折叠侧栏、Ctrl+K 命令面板、KPI/图表、双主题
 - **体验示例数据**：无需真实采集即可预览完整界面
 
 > 不是监控软件。不做密码键盘记录，不破解微信数据库，不默认上传云端。详见下方「明确不做」。
 
-设计文档：[`../mindtrace-design/PRD-2.0.md`](../mindtrace-design/PRD-2.0.md) · [`../mindtrace-design/DESIGN.md`](../mindtrace-design/DESIGN.md)
+设计文档：[`../mindtrace-design/PRD-2.0.md`](../mindtrace-design/PRD-2.0.md) · [`../mindtrace-design/DESIGN-SYSTEM-2.md`](../mindtrace-design/DESIGN-SYSTEM-2.md) · [`../mindtrace-design/DESIGN.md`](../mindtrace-design/DESIGN.md)
 
 ---
 
@@ -22,10 +23,10 @@
 
 | 文件 | 说明 |
 |------|------|
-| `MindTrace-2.0.0-setup.exe` | **NSIS 安装包**（简体中文、可选目录、桌面/开始菜单快捷方式） |
-| `MindTrace-2.0.0-portable.exe` | 便携版，免安装直接运行 |
-| `MindTrace-2.0.0-win-x64.zip` | 绿色解压版 |
-| `MindTrace-2.0.0-source.zip` | 源码包（开发用） |
+| `MindTrace-2.1.0-setup.exe` | **NSIS 安装包**（简体中文、可选目录、桌面/开始菜单快捷方式） |
+| `MindTrace-2.1.0-portable.exe` | 便携版，免安装直接运行 |
+| `MindTrace-2.1.0-win-x64.zip` | 绿色解压版 |
+| `MindTrace-2.1.0-source.zip` | 源码包（开发用） |
 
 若 Windows SmartScreen 提示「未知发布者」，选择「仍要运行」（本地/开源构建未做代码签名属正常）。
 
@@ -242,7 +243,7 @@ A: `%APPDATA%/知迹 MindTrace/`。卸载时可选保留用户数据。
 
 ## 路线图摘要
 
-- **已交付（2.0.0）**：Worker 总线与预算、时间线缩放与 rollup、Wiki/记忆、快速笔记、IDE/下载/最近文件/UIA 采集器骨架、截屏 phash、FTS、MCP、e2e + 10k 性能测试  
+- **已交付（2.1.0）**：Worker 总线与预算、时间线缩放与 rollup、Wiki/记忆、快速笔记、IDE/下载/最近文件/UIA 采集器骨架、截屏 phash、FTS、MCP、e2e + 10k 性能测试  
 - **后续**：真正的 `utilityProcess` 隔离、WinRT OCR 生产路径、`better-sqlite3` win32 预构建、实体反链自动刷新 UI、更细的电池策略  
 
 ## 许可证

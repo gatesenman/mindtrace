@@ -1,7 +1,7 @@
 {
   "name": "mindtrace",
   "productName": "知迹 MindTrace",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "全景个人计算活动采集与 LLM Wiki 知识资产系统",
   "main": "src/main/main.js",
   "author": "MindTrace",
@@ -95,7 +95,8 @@
     "dayjs": "^1.11.13",
     "mammoth": "^1.9.0",
     "pdf-parse": "^1.1.1",
-    "sql.js": "^1.12.0"
+    "sql.js": "^1.12.0",
+    "uplot": "^1.6.31"
   },
   "devDependencies": {
     "electron": "^33.0.0",
