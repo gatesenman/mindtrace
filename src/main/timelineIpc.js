@@ -1,4 +1,4 @@
-// 时间线体验（2.3.2）：应用图标 / 网站图标缓存、打开链接/路径、忽略来源、加入知识库、详情面板、AI 摘要
+// 时间线体验（2.3.3）：应用图标 / 网站图标缓存、打开链接/路径、忽略来源、加入知识库、详情面板、AI 摘要
 const path = require('path'), fs = require('fs'), crypto = require('crypto');
 const { app, ipcMain, shell } = require('electron');
 
