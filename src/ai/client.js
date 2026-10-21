@@ -1,4 +1,5 @@
 const { PRESETS } = require('../main/config');
+const gate = require('../net/gate');
 
 /** 模型名只取字段值本身：去首尾空白/零宽字符，绝不使用显示名 */
 function cleanModel(m) { return String(m == null ? '' : m).replace(/[\u200B-\u200D\uFEFF]/g, '').trim(); }
@@ -45,8 +46,9 @@ async function chatCompletion(cfg, messages, options = {}) {
   const meta = { provider: ai.provider, model: body.model, purpose: options.purpose || 'chat', messages };
   let res;
   try {
-    res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: options.signal });
+    res = await gate.gatedFetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: options.signal }, { cfg, purpose: 'llm:' + (options.purpose || 'chat') });
   } catch (e) {
+    if (e.blocked) throw e;
     pro && pro.recordUsage({ ...meta, latency_ms: Date.now() - t0, ok: false, error: e.message });
     const err = new Error(`无法连接到 ${baseUrl}：${e.cause?.code || e.message}。请检查网络、代理或 Base URL。`); err.network = true; throw err;
   }
@@ -77,7 +79,7 @@ async function listModels(cfg) {
   try {
     const headers = {}; if (ai.apiKey) headers.Authorization = `Bearer ${String(ai.apiKey).trim()}`;
     const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
-    const r = await fetch(baseUrl + '/models', { headers, signal: ctl.signal }); clearTimeout(tm);
+    const r = await gate.gatedFetch(baseUrl + '/models', { headers, signal: ctl.signal }, { cfg, purpose: 'llm:models' }); clearTimeout(tm);
     if (!r.ok) return null;
     const j = await r.json();
     const arr = Array.isArray(j.data) ? j.data : (Array.isArray(j.models) ? j.models : []);

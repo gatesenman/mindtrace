@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="css/app.css" />
   <link rel="stylesheet" href="css/v23.css" />
   <link rel="stylesheet" href="css/timeline.css" />
+  <link rel="stylesheet" href="css/r24.css" />
 </head>
 <body data-theme="light">
   <div id="app" class="shell">
@@ -85,6 +86,9 @@
             <div class="sub">数据仅存本机</div>
           </div>
         </div>
+        <button id="net-pill" class="net-pill" title="出网账本：今天所有对外请求都在这里计数">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
+          <span id="net-pill-text">本日外发 0 次</span></button>
         <div id="status-pill" class="status-pill off"><span class="dot"></span><span id="status-text">未就绪</span></div>
         <button id="btn-pause" class="btn block"><span>暂停采集</span></button>
         <div class="tiny" style="text-align:center" id="app-version-label">v2.1.0 · Ctrl+Shift+M</div>
@@ -376,7 +380,8 @@
             <div class="usage-kpis"><div><div class="label">费用</div><div class="value" id="us-cost">$0</div></div><div><div class="label">Tokens</div><div class="value" id="us-tokens">0</div></div><div><div class="label">调用</div><div class="value" id="us-calls">0</div></div></div>
             <div class="budget-bar"><span id="us-bar"></span></div><div class="tiny" id="us-cap-text">未设置预算</div>
             <div class="grid two" style="margin-top:10px"><div class="field"><label>月度预算（USD，0 为不限）</label><input type="number" id="us-budget" class="input" min="0" step="0.5" /></div>
-            <label class="switch" style="align-self:end"><input type="checkbox" id="pr-localonly" /><span>仅本地模式（只允许 127.0.0.1 模型）</span></label></div>
+            <label class="switch" style="align-self:end"><input type="checkbox" id="pr-localonly" /><span>仅本地模式（所有出网请求统一拦截，只允许本机模型）</span></label></div>
+            <div class="net-ledger" id="net-ledger"></div>
             <button class="btn" id="btn-usage-save">保存</button>
             <div class="table-wrap" style="margin-top:10px"><table class="data"><thead><tr><th>模型</th><th>调用</th><th>Tokens</th><th>费用</th><th>平均耗时</th><th>失败</th></tr></thead><tbody id="us-models"></tbody></table></div>
           </div>
@@ -561,6 +566,7 @@
   <script src="js/pro.js"></script>
   <script src="js/ux.js"></script>
   <script src="js/timeline.js"></script>
+  <script src="js/r24.js"></script>
   <script src="js/v23.js"></script>
 </body>
 </html>

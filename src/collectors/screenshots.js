@@ -8,6 +8,10 @@ const { visionDescribe, parseJsonLoose } = require('../ai/client');
 const status = require('../main/collectorStatus');
 const { sampleHash, similar } = require('../worker/phash');
 const { redactText } = require('../privacy/redact');
+const winocr = require('../ocr/winocr');
+const tdedup = require('../ocr/textdedup');
+const gate = require('../net/gate');
+let lastOcr = { lines: [], text: '', app: '' };
 
 let timer = null;
 let getConfig = () => ({});
@@ -55,6 +59,7 @@ function canUseVision(cfg) {
   if (!ai.apiKey && !base.includes('11434') && !base.includes('localhost') && !base.includes('127.0.0.1')) {
     return false;
   }
+  if (!gate.check(base, cfg, 'llm:vision').ok) return false;
   // visionModel preferred; otherwise allow known multimodal names or local endpoints
   if (ai.visionModel && String(ai.visionModel).trim()) return true;
   const m = model.toLowerCase();
@@ -62,9 +67,28 @@ function canUseVision(cfg) {
   return /gpt-4o|gpt-4\.1|vision|qwen-vl|qwen2-vl|llava|moondream|gemini|glm-4v|internvl|mock/.test(m);
 }
 
-async function describeShot(cfg, id, file) {
+/** 2.4：本地 OCR 优先（Windows.Media.Ocr），文本级去重；只有本地拿不到文字时才考虑云端识图 */
+async function localOcr(cfg, id, file, phash, appName) {
+  if (cfg.privacy?.ocrEngine === 'off' || !winocr.supported()) return null;
+  const r = await winocr.recognize(file, { key: phash });
+  if (!r.ok) { status.ok('screenshots', '本地 OCR 不可用：' + String(r.error).slice(0, 40)); return null; }
+  if (!r.text || r.text.replace(/\s/g, '').length < 12) return { empty: true };
+  const sim = lastOcr.app === appName ? tdedup.similarity(r.text, lastOcr.text) : 0;
+  const newLines = lastOcr.app === appName ? tdedup.delta(lastOcr.lines, r.lines) : r.lines;
+  lastOcr = { lines: r.lines, text: r.text, app: appName };
+  let text = r.text, description;
+  if (sim >= 0.92) description = `本地 OCR · 与上一帧文字基本相同（相似度 ${Math.round(sim * 100)}%）`;
+  else description = `本地 OCR · ${r.lines.length} 行${newLines.length < r.lines.length ? `（新增 ${newLines.length} 行）` : ''} · ${r.ms}ms`;
+  if (cfg.privacy?.autoRedact !== false) text = redactText(text);
+  store.updateScreenshotDescription(id, description, text);
+  return { ok: true, duplicate: sim >= 0.92, lines: r.lines.length, newLines: newLines.length, ms: r.ms };
+}
+
+async function describeShot(cfg, id, file, phash, appName) {
   try {
-    if (!canUseVision(cfg)) return;
+    const loc = await localOcr(cfg, id, file, phash, appName).catch(() => null);
+    if (loc && loc.ok && !cfg.ai?.visionAfterOcr) return loc;
+    if (!canUseVision(cfg)) return loc;
     const model = cfg.ai.visionModel || cfg.ai.model;
     const { content } = await visionDescribe(cfg, file, prompts.visionScreenshot, {
       model,
@@ -95,8 +119,8 @@ async function describeShot(cfg, id, file) {
   }
 }
 
-function enqueueVision(cfg, id, file) {
-  visionQueue = visionQueue.then(() => describeShot(cfg, id, file)).catch(() => {});
+function enqueueVision(cfg, id, file, phash, appName) {
+  visionQueue = visionQueue.then(() => describeShot(cfg, id, file, phash, appName)).catch(() => {});
 }
 
 async function capture(force = false) {
@@ -147,8 +171,8 @@ async function capture(force = false) {
       content: null,
       meta: { screenshotId: id, visionPending: true, phash }
     });
-    // Local OCR hook (Windows.Media.Ocr / tesseract) — best-effort; then vision
-    enqueueVision(cfg, id, file);
+    // 2.4：本地 OCR（Windows.Media.Ocr）优先，云端识图仅兜底
+    enqueueVision(cfg, id, file, phash, cur?.app || '');
     status.ok('screenshots', '已截屏');
     return { id, file };
   } catch (e) {
@@ -178,4 +202,4 @@ function stop() {
   if (timer) { clearTimeout(timer); timer = null; }
 }
 
-module.exports = { start, stop, capture, shotDir, describeShot };
+module.exports = { start, stop, capture, shotDir, describeShot, localOcr, _resetOcr: () => { lastOcr = { lines: [], text: '', app: '' }; } };

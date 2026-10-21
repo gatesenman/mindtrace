@@ -1,0 +1,16 @@
+/* 知迹 2.4 · 信任与回忆 */
+.net-pill { display:flex; align-items:center; gap:6px; width:100%; margin:0 0 6px; padding:6px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg-elevated); color:var(--text-2); font-size:var(--fs-xs); cursor:pointer; transition:border-color .15s, color .15s; }
+.net-pill svg { width:13px; height:13px; flex:none; }
+.net-pill:hover { border-color:var(--border-strong); color:var(--text); }
+.net-pill.local { color:var(--success); border-color:color-mix(in srgb, var(--success) 35%, transparent); background:color-mix(in srgb, var(--success) 7%, var(--bg-elevated)); }
+.net-pill.blocked b { color:var(--warning); }
+body.sidebar-collapsed .net-pill span { display:none; }
+.net-ledger { margin-top:10px; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.net-ledger .nl-head { display:flex; gap:18px; padding:10px 12px; background:var(--bg-sunken); font-size:var(--fs-sm); color:var(--text-2); }
+.net-ledger .nl-head b { font-size:var(--fs-lg); color:var(--text); font-variant-numeric:tabular-nums; margin-right:4px; }
+.net-ledger .nl-row { display:grid; grid-template-columns:64px 1fr 120px 64px; gap:8px; padding:6px 12px; border-top:1px solid var(--border); font-size:var(--fs-xs); color:var(--text-2); }
+.net-ledger .nl-row .ok { color:var(--success); } .net-ledger .nl-row .no { color:var(--warning); }
+.net-ledger .nl-empty { padding:10px 12px; font-size:var(--fs-xs); color:var(--text-3); border-top:1px solid var(--border); }
+.ocr-status { display:flex; align-items:center; gap:8px; margin-top:8px; font-size:var(--fs-xs); color:var(--text-2); }
+.ocr-status .chip { padding:2px 8px; border-radius:99px; background:var(--bg-sunken); }
+.ocr-status .chip.on { background:color-mix(in srgb, var(--success) 12%, transparent); color:var(--success); }

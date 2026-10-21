@@ -26,10 +26,10 @@ function register({ store, getConfig, setConfig, v23 }) {
     if (mem.has(k)) return mem.get(k);
     let v = fromDisk(k);
     // 本地优先：仅本地模式或关闭网站图标时不联网
-    if (v == null && !cfg.privacy?.localOnly && cfg.privacy?.fetchFavicons !== false) {
+    if (v == null && require('../net/gate').check(`https://${host}/`, cfg, 'favicon').ok) {
       try {
         const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 3000);
-        const r = await fetch(`https://${host}/favicon.ico`, { signal: ctl.signal, redirect: 'follow' }); clearTimeout(tm);
+        const r = await require('../net/gate').gatedFetch(`https://${host}/favicon.ico`, { signal: ctl.signal, redirect: 'follow' }, { cfg, purpose: 'favicon' }); clearTimeout(tm);
         const buf = r.ok ? Buffer.from(await r.arrayBuffer()) : null;
         const ok = buf && buf.length > 64 && buf.length < 200000;
         const { nativeImage } = require('electron');

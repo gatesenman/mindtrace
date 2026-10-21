@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('mindtrace', {
   clearChat: () => ipcRenderer.invoke('clear-chat'),
   proAudit: (o) => ipcRenderer.invoke('pro-audit', o),
   proWipeRange: (o) => ipcRenderer.invoke('pro-wipe-range', o),
+  r24: (ch, o) => ipcRenderer.invoke('r24-' + ch, o),
+  onR24: (ch, cb) => ipcRenderer.on('r24-' + ch, (_e, d) => cb(d)),
   proGetRules: () => ipcRenderer.invoke('pro-get-rules'),
   proSetRules: (o) => ipcRenderer.invoke('pro-set-rules', o),
   proUsage: () => ipcRenderer.invoke('pro-usage'),

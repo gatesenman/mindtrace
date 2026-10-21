@@ -975,6 +975,7 @@ function registerIpc() {
     const merge = (a, b) => { for (const k of Object.keys(b || {})) { if (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k])) a[k] = merge(a[k] || {}, b[k]); else a[k] = b[k]; } return a; };
     config = merge(config, patch); saveConfig(config);
   } });
+  require('./ipc24').register({ store, v23, pro, getConfig: () => config, saveConfig: () => saveConfig(config), getWindow: () => mainWindow });
   ipcMain.handle('pro-get-rules', () => ({ rules: config.privacy.rules || [], sensitiveDetection: config.privacy.sensitiveDetection !== false, localOnly: !!config.privacy.localOnly }));
   ipcMain.handle('pro-set-rules', safe((_e, o = {}) => {
     if (Array.isArray(o.rules)) config.privacy.rules = o.rules.filter(r => r && r.match).map(r => ({ match: String(r.match), scope: r.scope === 'site' ? 'site' : 'app', mode: ['none', 'title', 'full'].includes(r.mode) ? r.mode : 'none' }));
