@@ -7,6 +7,7 @@ function seed(store) {
   store.run(`DELETE FROM activities`);
   const d0 = new Date(); d0.setHours(0, 0, 0, 0);
   const rows = require(path.join(__dirname, '../../tests/fixtures/' + ((process.argv.find(x => x.startsWith('--fixture=')) || '=noisy-day').split('=')[1]) + '.js'))(d0.getTime());
+  if (process.argv.includes('--seed-insert')) { for (const r of rows) { const { id, ...rest } = r; rest.meta = r.meta ? JSON.parse(r.meta) : undefined; store.insertActivity(rest); } try { store.persist(true); } catch (_) {} return; }
   for (const r of rows) store.run(`INSERT INTO activities (id,type,started_at,ended_at,duration_ms,app_name,process_name,window_title,url,file_path,content,meta,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, [r.id, r.type, r.started_at, r.ended_at, r.duration_ms || 0, r.app_name || null, r.process_name || null, r.window_title || null, r.url || null, r.file_path || null, r.content || null, r.meta || null, Date.now()]);
   try { store.persist(true); } catch (_) {}
 }

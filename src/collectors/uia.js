@@ -1,9 +1,6 @@
 /**
  * UI Automation text capture — Windows via PowerShell UIAutomation; Linux: stub (title only via windowTracker).
  */
-const { execFile } = require('child_process');
-const { promisify } = require('util');
-const execFileAsync = promisify(execFile);
 const status = require('../main/collectorStatus');
 const { isSelfApp } = require('../main/appNames');
 
@@ -12,49 +9,62 @@ let getConfig = () => ({});
 let bus = null;
 let lastHash = '';
 let lastTs = 0;
+let lastMs = null, lastTrunc = false;
 
-async function captureWinUia() {
-  const script = `
+// 2.4：常驻 PowerShell UIA 宿主（原来每 8 秒新起一个 powershell.exe）。
+// 借鉴 Screenpipe 事件驱动规格：无障碍树遍历设硬时限（这里 350ms），超时就用已拿到的部分；密码框按 IsPassword 属性跳过。
+const { PsHost } = require('../common/psHost');
+const UIA_SCRIPT = String.raw`
+$ErrorActionPreference = 'Stop'
+[Console]::InputEncoding = [Text.Encoding]::UTF8
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
-\$root = [System.Windows.Automation.AutomationElement]::FocusedElement
-if (-not \$root) { \$root = [System.Windows.Automation.AutomationElement]::FromHandle((Get-Process -Id (Get-ForegroundWindowHelper)).MainWindowHandle) }
-function Get-ForegroundWindowHelper {
-  Add-Type @"
+Add-Type @"
 using System; using System.Runtime.InteropServices;
-public class FG { [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); }
+public class MTFG { [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid); }
 "@
-  return [FG]::GetForegroundWindow()
-}
-try {
-  \$hwnd = (Add-Type @"
-using System; using System.Runtime.InteropServices;
-public class H { [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); }
-"@ -PassThru)::GetForegroundWindow()
-  \$el = [System.Windows.Automation.AutomationElement]::FromHandle(\$hwnd)
-  if (-not \$el) { '{}' ; return }
-  \$name = \$el.Current.Name
-  \$ctype = \$el.Current.ControlType.ProgrammaticName
-  \$cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)
-  \$texts = \$el.FindAll([System.Windows.Automation.TreeScope]::Descendants, \$cond)
-  \$arr = @()
-  \$i = 0
-  foreach (\$t in \$texts) {
-    if (\$i -ge 40) { break }
-    \$n = \$t.Current.Name
-    if (\$n -and \$n.Length -gt 1) { \$arr += \$n; \$i++ }
-  }
-  @{ title = \$name; texts = \$arr } | ConvertTo-Json -Compress
-} catch { '{}' }
-`;
+$AE = [System.Windows.Automation.AutomationElement]
+$CT = [System.Windows.Automation.ControlType]
+$walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+while ($true) {
+  $line = [Console]::In.ReadLine()
+  if ($line -eq $null) { break }
   try {
-    const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', script], {
-      timeout: 4000, windowsHide: true, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024
-    });
-    return JSON.parse(stdout.trim() || '{}');
-  } catch (_) {
-    return {};
-  }
+    $budget = 350; $max = 60
+    if ($line -match '^\d+$') { $budget = [int]$line }
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $h = [MTFG]::GetForegroundWindow(); $procId = 0; $null = [MTFG]::GetWindowThreadProcessId($h, [ref]$procId)
+    $pname = ''; try { $pname = (Get-Process -Id $procId).ProcessName } catch {}
+    $el = $AE::FromHandle($h)
+    if (-not $el) { '{"ok":true,"texts":[]}'; [Console]::Out.Flush(); continue }
+    $arr = New-Object System.Collections.ArrayList; $seen = @{}; $nodes = 0; $truncated = $false
+    $stack = New-Object System.Collections.Stack; $stack.Push(@($el, 0))
+    while ($stack.Count -gt 0) {
+      if ($sw.ElapsedMilliseconds -gt $budget -or $arr.Count -ge $max) { $truncated = $true; break }
+      $pair = $stack.Pop(); $n = $pair[0]; $depth = $pair[1]; $nodes++
+      try {
+        $c = $n.Current
+        $isPw = $false; try { $isPw = $c.IsPassword } catch {}
+        if (-not $isPw) {
+          $t = $c.ControlType
+          $txt = $null
+          if ($t -eq $CT::Text -or $t -eq $CT::ListItem -or $t -eq $CT::Hyperlink -or $t -eq $CT::Header -or $t -eq $CT::DataItem) { $txt = $c.Name }
+          elseif ($t -eq $CT::Document -or $t -eq $CT::Edit) { try { $vp = $n.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern); $txt = $vp.Current.Value } catch { $txt = $c.Name } }
+          if ($txt -and $txt.Length -gt 1 -and -not $seen.ContainsKey($txt)) { $seen[$txt] = 1; $null = $arr.Add($txt.Substring(0, [Math]::Min(2000, $txt.Length))) }
+        }
+        if ($depth -lt 25) { $ch = $walker.GetLastChild($n); while ($ch) { $stack.Push(@($ch, ($depth + 1))); $ch = $walker.GetPreviousSibling($ch) } }
+      } catch {}
+    }
+    @{ ok = $true; title = $el.Current.Name; process = $pname; texts = @($arr); nodes = $nodes; ms = $sw.ElapsedMilliseconds; truncated = $truncated } | ConvertTo-Json -Compress -Depth 3
+  } catch { @{ ok = $false; error = "$($_.Exception.Message)" } | ConvertTo-Json -Compress }
+  [Console]::Out.Flush()
+}
+`;
+let host = null;
+function uiaHost(spawnImpl) { if (spawnImpl) { host && host.stop(); host = new PsHost({ name: 'uia', script: UIA_SCRIPT, timeoutMs: 3000, idleExitMs: 0, spawnImpl }); } if (!host) host = new PsHost({ name: 'uia', script: UIA_SCRIPT, timeoutMs: 4000, idleExitMs: 10 * 60000 }); return host; }
+async function captureWinUia(budgetMs = 350) {
+  try { const r = await uiaHost().request(String(budgetMs)); return r && r.ok ? r : {}; } catch (_) { return {}; }
 }
 
 async function tick(windowTracker) {
@@ -75,9 +85,9 @@ async function tick(windowTracker) {
 
   let text = '';
   let title = cur?.title || '';
-  if (process.platform === 'win32') {
-    const data = await captureWinUia();
-    title = data.title || title;
+  if (process.platform === 'win32' || host?.spawnImpl) {
+    const data = await captureWinUia(cfg.privacy?.uiaBudgetMs || 350);
+    title = data.title || title; lastMs = data.ms; lastTrunc = !!data.truncated;
     text = (data.texts || []).join('\n').slice(0, 8000);
   } else {
     // Linux: no UIA — record title-only marker infrequently
@@ -100,7 +110,7 @@ async function tick(windowTracker) {
     app: cur?.app || '前台应用',
     title,
     content: text || null,
-    meta: { process: cur?.process, len: (text || '').length },
+    meta: { process: cur?.process, len: (text || '').length, uia_ms: lastMs, truncated: lastTrunc },
     source: 'uia'
   });
   status.ok('uia', title.slice(0, 40));
@@ -117,6 +127,7 @@ function start(opts = {}) {
 function stop() {
   if (timer) clearInterval(timer);
   timer = null;
+  if (host) host.stop();
 }
 
-module.exports = { start, stop };
+module.exports = { start, stop, captureWinUia, UIA_SCRIPT, _inject: uiaHost, info: () => host ? host.info() : { alive: false } };

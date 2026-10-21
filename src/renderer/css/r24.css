@@ -14,3 +14,29 @@ body.sidebar-collapsed .net-pill span { display:none; }
 .ocr-status { display:flex; align-items:center; gap:8px; margin-top:8px; font-size:var(--fs-xs); color:var(--text-2); }
 .ocr-status .chip { padding:2px 8px; border-radius:99px; background:var(--bg-sunken); }
 .ocr-status .chip.on { background:color-mix(in srgb, var(--success) 12%, transparent); color:var(--success); }
+/* R2 六层信号 */
+.sig-grid { display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:10px; margin-top:4px; }
+.sig-tile { position:relative; padding:12px 12px 10px; border:1px solid var(--border); border-radius:10px; background:var(--bg-elevated); overflow:hidden; }
+.sig-tile::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--lc, var(--brand)); opacity:.85; }
+.sig-tile .sn { font-size:var(--fs-sm); font-weight:600; color:var(--text); display:flex; align-items:center; gap:6px; }
+.sig-tile .sn i { width:7px; height:7px; border-radius:50%; background:var(--lc); }
+.sig-tile .sv { font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; margin:6px 0 2px; color:var(--text); letter-spacing:-.02em; }
+.sig-tile .sv small { font-size:var(--fs-xs); color:var(--text-3); font-weight:400; margin-left:3px; letter-spacing:0; }
+.sig-tile .sd { font-size:11px; color:var(--text-3); line-height:1.45; min-height:32px; }
+.sig-tile .sc { margin-top:8px; display:flex; flex-wrap:wrap; gap:4px; }
+.sig-tile .sc span { font-size:10.5px; padding:1px 6px; border-radius:99px; background:var(--bg-sunken); color:var(--text-3); }
+.sig-tile .sc span.on { background:color-mix(in srgb, var(--lc) 14%, transparent); color:var(--lc); }
+.sig-tile.off { opacity:.72; }
+.sig-objects { margin-top:14px; display:grid; grid-template-columns:240px 1fr; gap:14px; align-items:start; }
+.sig-kpis { display:grid; gap:8px; }
+.sig-kpis div { padding:10px 12px; border-radius:10px; background:var(--bg-sunken); font-size:var(--fs-xs); color:var(--text-2); }
+.sig-kpis b { display:block; font-size:var(--fs-lg); color:var(--text); font-variant-numeric:tabular-nums; }
+.sig-objlist { border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.sig-objlist .oh { padding:8px 12px; font-size:var(--fs-xs); color:var(--text-3); background:var(--bg-sunken); }
+.sig-objlist .orow { display:grid; grid-template-columns:56px 1fr auto 52px; gap:10px; align-items:center; padding:8px 12px; border-top:1px solid var(--border); font-size:var(--fs-sm); }
+.sig-objlist .otype { font-size:10.5px; padding:1px 6px; border-radius:4px; background:var(--bg-sunken); color:var(--text-2); text-align:center; }
+.sig-objlist .ot { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+.sig-objlist .ot small { display:block; color:var(--text-3); font-size:11px; overflow:hidden; text-overflow:ellipsis; }
+.sig-objlist .oa { display:flex; gap:3px; } .sig-objlist .oa span { font-size:10px; padding:1px 5px; border-radius:99px; background:var(--bg-sunken); color:var(--text-3); }
+.sig-objlist .on { text-align:right; color:var(--text-2); font-variant-numeric:tabular-nums; }
+@media (max-width: 1180px) { .sig-grid { grid-template-columns:repeat(3, minmax(0,1fr)); } }

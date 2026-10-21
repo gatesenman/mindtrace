@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS rollups (
 `;
 
 async function initStore(opts = {}) {
+  _objReady = false; _dedup = null;
   dbPath = opts.dbPath || path.join(app.getPath('userData'), 'mindtrace.db');
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   db = await dbAdapter.open(dbPath, opts);
@@ -281,6 +282,11 @@ let memoryThreshold = 0.75;
 function setInsertPolicy(fn) { insertPolicy = typeof fn === 'function' ? fn : null; }
 function setMemoryThreshold(v) { if (typeof v === 'number') memoryThreshold = v; }
 
+let _dedup = null, _objReady = false;
+function objDeduper() { if (!_dedup) { const { ObjectDeduper } = require('../core/signal'); _dedup = new ObjectDeduper(); } return _dedup; }
+function ensureObjects() { if (_objReady) return; for (const q of require('../core/signal').OBJECTS_SQL.split(';').map(x => x.trim()).filter(Boolean)) run(q); _objReady = true; }
+function signalStats() { return objDeduper().stats; }
+function dedupContent(row) { try { const sig = require('../core/signal'); return objDeduper().check(row, sig.envelope(row)); } catch (_) { return { drop: false }; } }
 function insertActivity(row) {
   try {
     const noise = require('../core/noise');
@@ -295,6 +301,18 @@ function insertActivity(row) {
     if (!row) return null;
   }
   const id = row.id || crypto.randomUUID();
+  // 2.4：统一事件信封 + 对象级去重（六层信号）
+  let env = null;
+  try {
+    const sig = require('../core/signal');
+    const m0 = row.meta && typeof row.meta === 'object' ? row.meta : null;
+    if (!(m0 && (m0.isDemo || m0.demo))) {
+      env = sig.envelope(row);
+      const d = objDeduper().check({ ...row, id }, env);
+      if (d.drop) return null;
+      if (m0 || row.meta == null) row = { ...row, meta: { ...(m0 || {}), layer: env.layer, obj: env.object?.hash || null, conf: env.confidence } };
+    }
+  } catch (_) { env = null; }
   const now = Date.now();
   const content = row.content != null ? redactText(String(row.content)) : null;
   run(
@@ -317,6 +335,7 @@ function insertActivity(row) {
     ]
   );
   indexActivityFts({ ...row, id, content });
+  if (env && env.object) { try { ensureObjects(); require('../core/signal').upsertObject({ get, run }, env, id); } catch (_) {} }
   if (activityHook) { try { activityHook({ ...row, id, content }); } catch (_) {} }
   return id;
 }
@@ -748,7 +767,7 @@ function getDb() { return db; }
 module.exports = {
   initStore, persist, closeStore, getDbPath, pruneOldData, ftsStatus, reindexFts, deleteActivitiesFts, transaction, getDb,
   run, all, get,
-  insertActivity, updateActivityEnd, insertScreenshot, updateScreenshotDescription,
+  insertActivity, signalStats, dedupContent, ensureObjects, updateActivityEnd, insertScreenshot, updateScreenshotDescription,
   upsertKnowledgeCard, upsertJournal, addChatMessage,
   searchActivities, getTodayStats, getActivityById, getCardById, getJournalById, upsertTopic, clearDemoData,
   setInsertPolicy, setActivityHook, setMemoryThreshold, upsertWikiPage, upsertMemory, upsertRollup, searchFts, getRollups, listWiki, listMemories, insertActivityBatch, indexActivityFts

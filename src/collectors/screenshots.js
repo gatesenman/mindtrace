@@ -68,7 +68,7 @@ function canUseVision(cfg) {
 }
 
 /** 2.4：本地 OCR 优先（Windows.Media.Ocr），文本级去重；只有本地拿不到文字时才考虑云端识图 */
-async function localOcr(cfg, id, file, phash, appName) {
+async function localOcr(cfg, id, file, phash, appName, title) {
   if (cfg.privacy?.ocrEngine === 'off' || !winocr.supported()) return null;
   const r = await winocr.recognize(file, { key: phash });
   if (!r.ok) { status.ok('screenshots', '本地 OCR 不可用：' + String(r.error).slice(0, 40)); return null; }
@@ -77,6 +77,8 @@ async function localOcr(cfg, id, file, phash, appName) {
   const newLines = lastOcr.app === appName ? tdedup.delta(lastOcr.lines, r.lines) : r.lines;
   lastOcr = { lines: r.lines, text: r.text, app: appName };
   let text = r.text, description;
+  const cross = store.dedupContent ? store.dedupContent({ type: 'screenshot', app_name: appName, window_title: title || '', content: r.text, started_at: Date.now() }) : { drop: false };
+  if (cross.drop) { store.updateScreenshotDescription(id, '本地 OCR · 与界面文字（UIA）内容一致，已归并到同一对象', null); return { ok: true, duplicate: true, cross: true }; }
   if (sim >= 0.92) description = `本地 OCR · 与上一帧文字基本相同（相似度 ${Math.round(sim * 100)}%）`;
   else description = `本地 OCR · ${r.lines.length} 行${newLines.length < r.lines.length ? `（新增 ${newLines.length} 行）` : ''} · ${r.ms}ms`;
   if (cfg.privacy?.autoRedact !== false) text = redactText(text);
@@ -84,9 +86,9 @@ async function localOcr(cfg, id, file, phash, appName) {
   return { ok: true, duplicate: sim >= 0.92, lines: r.lines.length, newLines: newLines.length, ms: r.ms };
 }
 
-async function describeShot(cfg, id, file, phash, appName) {
+async function describeShot(cfg, id, file, phash, appName, title) {
   try {
-    const loc = await localOcr(cfg, id, file, phash, appName).catch(() => null);
+    const loc = await localOcr(cfg, id, file, phash, appName, title).catch(() => null);
     if (loc && loc.ok && !cfg.ai?.visionAfterOcr) return loc;
     if (!canUseVision(cfg)) return loc;
     const model = cfg.ai.visionModel || cfg.ai.model;
@@ -119,8 +121,8 @@ async function describeShot(cfg, id, file, phash, appName) {
   }
 }
 
-function enqueueVision(cfg, id, file, phash, appName) {
-  visionQueue = visionQueue.then(() => describeShot(cfg, id, file, phash, appName)).catch(() => {});
+function enqueueVision(cfg, id, file, phash, appName, title) {
+  visionQueue = visionQueue.then(() => describeShot(cfg, id, file, phash, appName, title)).catch(() => {});
 }
 
 async function capture(force = false) {
@@ -172,7 +174,7 @@ async function capture(force = false) {
       meta: { screenshotId: id, visionPending: true, phash }
     });
     // 2.4：本地 OCR（Windows.Media.Ocr）优先，云端识图仅兜底
-    enqueueVision(cfg, id, file, phash, cur?.app || '');
+    enqueueVision(cfg, id, file, phash, cur?.app || '', cur?.title || '');
     status.ok('screenshots', '已截屏');
     return { id, file };
   } catch (e) {
