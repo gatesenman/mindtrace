@@ -69,7 +69,11 @@ function canUseVision(cfg) {
 
 /** 2.4：本地 OCR 优先（Windows.Media.Ocr），文本级去重；只有本地拿不到文字时才考虑云端识图 */
 async function localOcr(cfg, id, file, phash, appName, title) {
-  if (cfg.privacy?.ocrEngine === 'off' || !winocr.supported()) return null;
+  if (cfg.privacy?.ocrEngine === 'off') return null;
+  if (!winocr.supported()) {
+    status.ok('screenshots', '本地 OCR 仅 Windows 可用 · 已跳过识字（截图文件仍保存）');
+    return null;
+  }
   const r = await winocr.recognize(file, { key: phash });
   if (!r.ok) { status.ok('screenshots', '本地 OCR 不可用：' + String(r.error).slice(0, 40)); return null; }
   if (!r.text || r.text.replace(/\s/g, '').length < 12) return { empty: true };

@@ -135,3 +135,16 @@
   }
   const _rs = refreshSignal;
   refreshSignal = async () => { await _rs(); mountReports(); };
+  async function refreshHealth() {
+    let h; try { h = await mt.r24('health'); } catch (_) { return; }
+    let host = $('sig-grid')?.parentElement; if (!host) host = $('net-ledger')?.parentElement; if (!host) return;
+    let el = $('r8-health');
+    if (!el) { el = document.createElement('div'); el.id = 'r8-health'; el.className = 'r8-health'; host.insertBefore(el, host.firstChild); }
+    const ST = { ok: '正常', degraded: '降级', off: '未开', pending: '待测', warn: '注意', error: '异常' };
+    el.innerHTML = `<div class="r8-head"><b>运行健康</b><span class="chip ${h.overall}">${esc(ST[h.overall] || h.overall)} · ${esc(h.summary || '')}</span>
+      <span class="tiny">${h.verifiedOnWindows ? '' : '【未在 Windows 真机验证】平台 ' + esc(h.platform || '')}</span></div>
+      <div class="r8-grid">${(h.items || []).map(it => `<div class="r8-item ${it.state}"><div class="n">${esc(it.name)}</div><div class="l">${esc(it.label)}</div><div class="d">${esc(it.detail || '')}</div>${it.warn ? `<div class="w">${esc(it.warn)}</div>` : ''}${it.action ? `<div class="a">${esc(it.action)}</div>` : ''}</div>`).join('')}</div>`;
+  }
+  const _boot = async () => { try { await refreshNet(); await refreshSignal(); await refreshHealth(); } catch (_) {} };
+  setTimeout(_boot, 400);
+  setInterval(() => { refreshHealth().catch(() => {}); }, 30000);

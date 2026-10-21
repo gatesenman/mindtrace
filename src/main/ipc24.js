@@ -58,6 +58,14 @@ function register(ctx) {
     return r;
   });
   ipcMain.handle('r24-review7', () => ({ ...bf.review7(ctx.store, { days: 7 }), backfillDoneAt: getConfig().backfillDoneAt || null }));
+  ipcMain.handle('r24-health', () => {
+    try {
+      const inst = require('../mcp/install');
+      const c = getConfig();
+      const mcpOpts = { url: `http://127.0.0.1:${(c.api?.port || 17321) + 1}/mcp`, token: c.api?.token || '' };
+      return require('../core/health').snapshot(c, { mcpInstall: inst.status(mcpOpts) });
+    } catch (e) { return { overall: 'error', summary: e.message, items: [] }; }
+  });
   // ── R6：日报/周报 + 承诺扫描 ──
   const reports = require('../core/reports');
   const commits = require('../core/commitments');
