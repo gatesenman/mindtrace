@@ -107,3 +107,31 @@
     mt.onR24 && mt.onR24('goto', (d) => { document.querySelector(`[data-view=${d.view || 'timeline'}]`)?.click(); });
   });
 })();
+  // R6：日报/周报入口（采集中心信号卡下方）
+  async function mountReports() {
+    const host = $('sig-objects'); if (!host || $('r6-reports')) return;
+    const box = document.createElement('div'); box.id = 'r6-reports'; box.className = 'r6-reports';
+    box.innerHTML = `<div class="oh">主动产出</div>
+      <div class="r6-actions">
+        <button class="btn ghost" data-r="daily">生成今日日报</button>
+        <button class="btn ghost" data-r="weekly">生成本周周报</button>
+        <button class="btn ghost" data-r="commit">扫描聊天承诺</button>
+      </div>
+      <pre class="r6-out muted tiny" id="r6-out"></pre>`;
+    host.appendChild(box);
+    box.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-r]'); if (!b) return;
+      const out = $('r6-out'); out.textContent = '生成中…';
+      try {
+        let r;
+        if (b.dataset.r === 'daily') r = await mt.r24('report-daily', {});
+        else if (b.dataset.r === 'weekly') r = await mt.r24('report-weekly', {});
+        else r = await mt.r24('commitments-scan', {});
+        if (r.markdown) out.textContent = r.markdown.slice(0, 1200);
+        else out.textContent = JSON.stringify(r, null, 2).slice(0, 800);
+        if (window.toast) window.toast(r.ok === false ? (r.error || '失败') : (b.dataset.r === 'commit' ? `承诺 ${r.created?.length || 0} 条` : '已写入日记'));
+      } catch (err) { out.textContent = String(err.message || err); }
+    });
+  }
+  const _rs = refreshSignal;
+  refreshSignal = async () => { await _rs(); mountReports(); };

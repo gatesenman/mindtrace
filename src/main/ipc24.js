@@ -58,6 +58,16 @@ function register(ctx) {
     return r;
   });
   ipcMain.handle('r24-review7', () => ({ ...bf.review7(ctx.store, { days: 7 }), backfillDoneAt: getConfig().backfillDoneAt || null }));
+  // ── R6：日报/周报 + 承诺扫描 ──
+  const reports = require('../core/reports');
+  const commits = require('../core/commitments');
+  ipcMain.handle('r24-report-daily', (_e, { date } = {}) => { try { return { ok: true, ...reports.draftDaily(date) }; } catch (e) { return { ok: false, error: e.message }; } });
+  ipcMain.handle('r24-report-weekly', (_e, { date } = {}) => { try { return { ok: true, ...reports.draftWeekly(date) }; } catch (e) { return { ok: false, error: e.message }; } });
+  ipcMain.handle('r24-report-preview', (_e, { period = 'daily', date } = {}) => {
+    try { return period === 'weekly' ? reports.summarizeWeek(ctx.store, date) : reports.summarizeDay(ctx.store, date); }
+    catch (e) { return { status: 'ERROR', error: e.message }; }
+  });
+  ipcMain.handle('r24-commitments-scan', () => { try { const r = commits.ingestRecent({ hours: 72 }); pro && pro.audit('commitments', 'scan', `${r.created.length}/${r.scanned}`); return { ok: true, ...r }; } catch (e) { return { ok: false, error: e.message }; } });
   (ctx.extra || []).forEach(fn => fn(ipcMain, ctx));
 }
 module.exports = { register };

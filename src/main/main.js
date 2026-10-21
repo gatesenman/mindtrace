@@ -393,6 +393,7 @@ function startCollectors() {
     }
   } catch (e) { appendLog('ERROR', 'start:api', e); }
   scheduleSummarize();
+  scheduleReports();
 }
 
 function stopCollectors() {
@@ -400,6 +401,30 @@ function stopCollectors() {
   apiServer.stop();
   try { mcpServer.stop(); } catch (_) {}
   if (summarizeTimer) clearInterval(summarizeTimer);
+  if (reportTimer) clearInterval(reportTimer);
+}
+
+
+let reportTimer = null;
+function scheduleReports() {
+  if (reportTimer) clearInterval(reportTimer);
+  reportTimer = setInterval(() => {
+    try {
+      const now = new Date();
+      // 每天 18:00–18:14 生成日报；周五同时生成周报
+      if (now.getHours() === 18 && now.getMinutes() < 15) {
+        const key = now.toISOString().slice(0, 10);
+        const last = config._lastDailyReportKey;
+        if (last !== key) {
+          config._lastDailyReportKey = key;
+          require('../core/reports').draftDaily();
+          require('../core/commitments').ingestRecent({ hours: 24 });
+          if (now.getDay() === 5) require('../core/reports').draftWeekly();
+          saveConfig(config);
+        }
+      }
+    } catch (e) { appendLog('ERROR', 'scheduleReports', e); }
+  }, 5 * 60 * 1000);
 }
 
 function scheduleSummarize() {

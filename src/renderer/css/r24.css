@@ -78,3 +78,7 @@ body.sidebar-collapsed .recall-btn span, body.sidebar-collapsed .recall-btn kbd 
 .mcp1-t .lg { width:34px; height:34px; border-radius:8px; display:grid; place-items:center; color:#fff; font-weight:700; font-size:13px; flex:none; }
 .mcp1-t .mt { flex:1; min-width:0; } .mcp1-t .mt b { display:block; font-size:var(--fs-sm); } .mcp1-t .mt span { font-size:11px; color:var(--text-3); }
 .mcp1-t .mt span.ok { color:var(--success); }
+
+.r6-reports { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.r6-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.r6-out { max-height: 220px; overflow: auto; white-space: pre-wrap; background: var(--bg-sunken); padding: 10px; border-radius: 8px; }
