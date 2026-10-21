@@ -103,9 +103,9 @@ async function readHistoryFile(filePath, sinceChromeTime, browserName, profile) 
   }
 }
 
-async function poll() {
-  const cfg = getConfig();
-  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.browser) {
+async function poll(opts = {}) {
+  const cfg = (opts.getConfig || getConfig)();
+  if (!cfg.authorized || cfg.privacy?.paused || (!cfg.collectors?.browser && !opts.force)) {
     status.disabled('browser');
     return;
   }
@@ -117,7 +117,7 @@ async function poll() {
     }
     let added = 0;
     for (const p of profiles) {
-      const since = lastByPath.get(p.filePath) || ((Date.now() + 11644473600000) * 1000 - 24 * 3600 * 1000000);
+      const since = opts.sinceMs ? (opts.sinceMs + 11644473600000) * 1000 : (lastByPath.get(p.filePath) || ((Date.now() + 11644473600000) * 1000 - 24 * 3600 * 1000000));
       let rows = [];
       try {
         rows = await readHistoryFile(p.filePath, since, p.browser, p.profile);
@@ -149,9 +149,10 @@ async function poll() {
         added++;
         maxCt = Math.max(maxCt, r.chromeTime);
       }
-      lastByPath.set(p.filePath, maxCt || since);
+      if (!opts.sinceMs) lastByPath.set(p.filePath, maxCt || since);
     }
     status.ok('browser', `已扫描 ${profiles.length} 个配置档` + (added ? `，新增 ${added}` : ''));
+    return { profiles: profiles.length, added };
   } catch (e) {
     status.err('browser', e);
   }

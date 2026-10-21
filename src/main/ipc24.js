@@ -25,6 +25,36 @@ function register(ctx) {
     const layers = Object.entries(sig.LAYERS).map(([k, v]) => ({ key: k, ...v, today: counts[k] || 0, enabled: v.collectors.filter(c => cfg.collectors?.[c]).length }));
     return { layers, objects, dedup: store.signalStats(), legacy: counts.legacy || 0, collectorsOn: cfg.collectors || {} };
   });
+  // ── R3：回忆框 ──
+  const { shell } = require('electron');
+  const recallWin = require('./recallWindow');
+  ipcMain.handle('r24-recall', (_e, { q } = {}) => require('../recall').recall(ctx.store, q || '', { limit: 8 }));
+  ipcMain.handle('r24-recall-hide', () => { recallWin.hide(); return true; });
+  ipcMain.handle('r24-recall-toggle', () => { recallWin.toggle(getConfig()); return true; });
+  ipcMain.handle('r24-recall-open', async (_e, { url, path: p, inApp } = {}) => {
+    const fs = require('fs');
+    if (!inApp && url && /^https?:\/\//i.test(url)) { await shell.openExternal(url); recallWin.hide(); return { ok: true }; }
+    if (!inApp && p) { if (fs.existsSync(p)) { const err = await shell.openPath(p); if (err) shell.showItemInFolder(p); recallWin.hide(); return { ok: true }; } return { ok: false, error: '文件不存在或已移动' }; }
+    const w = ctx.getWindow?.(); if (w) { w.show(); w.focus(); w.webContents.send('r24-goto', { view: 'timeline' }); }
+    recallWin.hide(); return { ok: true };
+  });
+  // ── R3：MCP 一键接入 ──
+  const inst = require('../mcp/install');
+  const mcpOpts = () => { const c = getConfig(); return { url: `http://127.0.0.1:${(c.api?.port || 17321) + 1}/mcp`, token: c.api?.token || '' }; };
+  ipcMain.handle('r24-mcp-status', () => ({ ...mcpOpts(), token: undefined, enabled: !!getConfig().api?.enabled, targets: inst.status(mcpOpts()) }));
+  ipcMain.handle('r24-mcp-install', async (_e, { key } = {}) => {
+    try { ctx.ensureApi && ctx.ensureApi(); const r = inst.install(key, mcpOpts()); pro && pro.audit('mcp', 'install', key, { file: r.file }); return r; }
+    catch (e) { return { ok: false, error: e.message }; }
+  });
+  ipcMain.handle('r24-mcp-uninstall', (_e, { key } = {}) => { try { return inst.uninstall(key, mcpOpts()); } catch (e) { return { ok: false, error: e.message }; } });
+  // ── R3：首日见效（回填 + 7 天回顾） ──
+  const bf = require('../core/backfill');
+  ipcMain.handle('r24-backfill', async (e, { days = 7 } = {}) => {
+    const r = await bf.run({ getConfig, days, onProgress: (p) => { try { e.sender.send('r24-backfill-progress', p); } catch (_) {} } });
+    if (r.ok) { const c = getConfig(); c.backfillDoneAt = Date.now(); ctx.saveConfig && ctx.saveConfig(); pro && pro.audit('backfill', 'run', `${days}d`, { total: r.total }); }
+    return r;
+  });
+  ipcMain.handle('r24-review7', () => ({ ...bf.review7(ctx.store, { days: 7 }), backfillDoneAt: getConfig().backfillDoneAt || null }));
   (ctx.extra || []).forEach(fn => fn(ipcMain, ctx));
 }
 module.exports = { register };

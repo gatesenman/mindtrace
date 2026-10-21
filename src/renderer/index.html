@@ -86,6 +86,7 @@
             <div class="sub">数据仅存本机</div>
           </div>
         </div>
+        <button id="recall-btn" class="recall-btn" title="回忆框：一句话找回看过、写过、聊过的东西"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span>回忆</span><kbd>Ctrl Shift Space</kbd></button>
         <button id="net-pill" class="net-pill" title="出网账本：今天所有对外请求都在这里计数">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
           <span id="net-pill-text">本日外发 0 次</span></button>
@@ -122,6 +123,7 @@
 
       <main class="main">
       <section id="view-dashboard" class="view">
+        <div class="card ftv-card" id="ftv-card"></div>
         <div class="grid stats">
           <div class="card stat">
             <div class="label">专注时长</div>
@@ -401,7 +403,8 @@
           </div>
           <div class="card">
             <div class="card-head"><h3>MCP 集成</h3><span class="tag-pill" id="mcp-state">未启用</span></div>
-            <p class="hint field">标准 MCP（JSON-RPC 2.0 / Streamable HTTP）。需先开启下方「本机 API」。</p>
+            <div class="mcp1" id="mcp1"></div>
+            <p class="hint field">标准 MCP（JSON-RPC 2.0 / Streamable HTTP）。一键接入会自动开启本机 API（仅监听 127.0.0.1）并生成令牌；也可手动复制下方配置。</p>
             <div class="field"><label>端点</label><code class="code-line" id="mcp-url"></code></div>
             <div class="chips" id="mcp-tabs" style="margin-bottom:6px"><button class="chip active" data-mcp="cursor">Cursor</button><button class="chip" data-mcp="claude">Claude Desktop</button></div>
             <pre class="code-block" id="mcp-config"></pre>

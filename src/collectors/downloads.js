@@ -39,9 +39,9 @@ async function extractExcerpt(filePath) {
   return '';
 }
 
-async function scan() {
-  const cfg = getConfig();
-  if (!cfg.authorized || cfg.privacy?.paused || !cfg.collectors?.downloads) {
+async function scan(opts = {}) {
+  const cfg = (opts.getConfig || getConfig)();
+  if (!cfg.authorized || cfg.privacy?.paused || (!cfg.collectors?.downloads && !opts.force)) {
     if (!cfg.collectors?.downloads) status.disabled('downloads');
     return;
   }
@@ -49,19 +49,20 @@ async function scan() {
   if (!fs.existsSync(dir)) return;
   let ents; try { ents = fs.readdirSync(dir); } catch { return; }
   const now = Date.now();
-  for (const name of ents.slice(0, 80)) {
+  let added = 0;
+  for (const name of ents.slice(0, opts.maxAgeDays ? 400 : 80)) {
     if (name.startsWith('.')) continue;
     const full = path.join(dir, name);
     let st; try { st = fs.statSync(full); } catch { continue; }
     if (!st.isFile()) continue;
-    if (now - st.mtimeMs > 3 * 86400000) continue;
+    if (now - st.mtimeMs > (opts.maxAgeDays || 3) * 86400000) continue;
     const ext = path.extname(name).toLowerCase();
     const key = full + ':' + st.mtimeMs;
     if (seen.has(key)) continue;
     seen.set(key, true);
     let content = '';
     if (TEXT_EXT.has(ext)) content = await extractExcerpt(full);
-    bus?.push({
+    (opts.sink || ((e) => bus?.push(e)))({
       type: 'download',
       ts_start: st.mtimeMs,
       app: '下载',
@@ -71,8 +72,10 @@ async function scan() {
       meta: { size: st.size, ext },
       source: 'downloads'
     });
+    added++;
   }
   status.ok('downloads', dir);
+  return { added };
 }
 
 function start(opts = {}) {
@@ -88,4 +91,4 @@ function stop() {
   timer = null;
 }
 
-module.exports = { start, stop, extractExcerpt, downloadsDir };
+module.exports = { start, stop, scan, extractExcerpt, downloadsDir };

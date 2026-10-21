@@ -46,3 +46,63 @@
     document.querySelector('[data-view=ai]')?.addEventListener('click', () => setTimeout(() => { refreshNet(); refreshOcr(); }, 200));
   });
 })();
+// ── R3：回忆框入口 / 首日见效 / MCP 一键接入 ──
+(function () {
+  const mt = window.mindtrace; if (!mt || !mt.r24) return;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const toastF = (m) => (window.toast ? window.toast(m) : console.log(m));
+  const SRC = [['browser', '浏览历史'], ['downloads', '下载文件夹'], ['files', '最近打开的文件'], ['git', 'Git 提交']];
+  function consent(progress = {}) {
+    $('ftv-card').innerHTML = `<div class="ftv-consent"><div><h3>10 分钟看到价值：回填过去 7 天</h3><p>知迹可以读取这台电脑上<b>本来就有</b>的记录，立即生成一份「过去 7 天回顾」。全部在本机处理，不调用 AI、不上传。</p>
+      <div class="ftv-src">${SRC.map(([k, n]) => `<span class="${progress[k]?.state || ''}">${progress[k]?.state === 'done' ? '✓ ' : ''}${n}${progress[k]?.added != null ? ` · ${progress[k].added}` : ''}</span>`).join('')}</div>
+      <div class="ftv-note">不会读取：聊天数据库、密码、浏览器 Cookie 与表单。可随时在「采集中心 → 数据清除」按时间段删除。</div></div>
+      <div class="row-btns"><button class="btn ghost" id="ftv-skip">以后再说</button><button class="btn primary" id="ftv-go">同意并回填</button></div></div>`;
+    $('ftv-skip').onclick = () => { localStorage.setItem('ftv-skip', '1'); $('ftv-card').innerHTML = ''; };
+    $('ftv-go').onclick = async () => {
+      $('ftv-go').disabled = true; $('ftv-go').textContent = '正在回填…';
+      const r = await mt.r24('backfill', { days: 7 });
+      if (!r.ok) { toastF('回填失败：' + r.error); $('ftv-go').disabled = false; $('ftv-go').textContent = '同意并回填'; return; }
+      toastF(`已回填 ${r.total} 条本机记录`); renderReview(await mt.r24('review7'));
+    };
+  }
+  const prog = {};
+  mt.onR24 && mt.onR24('backfill-progress', (p) => { prog[p.key] = p; if ($('ftv-go')) consent(prog), ($('ftv-go').disabled = true), ($('ftv-go').textContent = '正在回填…'); });
+  function renderReview(v) {
+    const max = Math.max(1, ...v.byDay.map(d => d.c));
+    const list = (rows, f) => rows.length ? rows.map(f).join('') : '<div class="ftv-row"><span class="nm tiny" style="color:var(--text-3)">暂无</span></div>';
+    const siteMax = Math.max(1, ...v.topSites.map(s => s.visits));
+    $('ftv-card').innerHTML = `<div class="ftv-head"><h3>过去 7 天回顾</h3><span class="tiny">${v.backfillDoneAt ? '含回填数据 · ' : ''}纯本地规则统计，无需 AI</span><div class="row-btns"><button class="btn sm" id="ftv-recall">打开回忆框</button></div></div>
+      <div class="ftv-grid"><div class="ftv-kpi"><div><b>${v.daysActive}</b>活跃天数</div><div><b>${v.total.toLocaleString()}</b>条记录</div><div><b>${v.commits}</b>次代码提交</div><div>每日记录<div class="ftv-days">${v.byDay.map(d => `<i title="${d.d} · ${d.c}" style="height:${Math.round(d.c / max * 100)}%"></i>`).join('')}</div></div></div>
+      <div class="ftv-col"><h4>常去的网站</h4>${list(v.topSites, s => `<div class="ftv-row"><span class="nm" title="${esc(s.sample || '')}">${esc(s.host)}</span><span class="bar" style="width:${Math.round(s.visits / siteMax * 60)}px"></span><span class="ct">${s.visits}</span></div>`)}</div>
+      <div class="ftv-col"><h4>反复打开的文件</h4>${list(v.files, f => `<div class="ftv-row"><span class="nm" title="${esc(f.path)}">${esc(f.name)}</span><span class="ct">${f.n} 次</span></div>`)}</div>
+      <div class="ftv-col"><h4>项目与提交</h4>${list(v.repos, r => `<div class="ftv-row"><span class="nm">${esc(r.name)}</span><span class="ct">${r.commits} 次提交</span></div>`)}${v.apps.length ? `<h4 style="margin-top:12px">最常用应用</h4>${v.apps.slice(0, 3).map(a => `<div class="ftv-row"><span class="nm">${esc(a.a)}</span><span class="ct">${Math.round(a.ms / 3600000 * 10) / 10} 小时</span></div>`).join('')}` : ''}</div></div>`;
+    $('ftv-recall').onclick = () => mt.r24('recall-toggle');
+  }
+  async function loadFtv() {
+    if (!$('ftv-card')) return;
+    let v; try { v = await mt.r24('review7'); } catch (_) { return; }
+    if (v.backfillDoneAt || v.total > 50) renderReview(v);
+    else if (!localStorage.getItem('ftv-skip')) consent();
+  }
+  const LG = { cursor: ['C', '#111827'], claude: ['A', '#D97757'] };
+  async function loadMcp1() {
+    const el = $('mcp1'); if (!el) return;
+    let s; try { s = await mt.r24('mcp-status'); } catch (_) { return; }
+    el.innerHTML = Object.entries(s.targets).map(([k, t]) => `<div class="mcp1-t"><div class="lg" style="background:${LG[k][1]}">${LG[k][0]}</div><div class="mt"><b>${esc(t.name)}</b><span class="${t.current ? 'ok' : ''}">${t.error ? esc(t.error) : t.current ? '已接入 · 重启该应用后生效' : t.installed ? '已接入（令牌已变化，建议更新）' : t.detected ? '已检测到，未接入' : '未检测到安装'}</span></div><button class="btn sm ${t.current ? '' : 'primary'}" data-mcp1="${k}">${t.current ? '重新写入' : '一键接入'}</button></div>`).join('');
+    el.querySelectorAll('[data-mcp1]').forEach(b => b.onclick = async () => {
+      b.disabled = true; const r = await mt.r24('mcp-install', { key: b.dataset.mcp1 });
+      toastF(r.ok ? `已写入 ${r.name} 配置${r.backup ? '（原文件已备份）' : ''}，重启 ${r.name} 即可使用` : '接入失败：' + r.error);
+      loadMcp1(); window.MTPro?.loadSettingsPro?.();
+    });
+  }
+  window.r24 = Object.assign(window.r24 || {}, { loadFtv, loadMcp1, renderReview, consent });
+  document.addEventListener('DOMContentLoaded', () => {
+    $('recall-btn')?.addEventListener('click', () => mt.r24('recall-toggle'));
+    loadFtv();
+    document.querySelector('[data-view=dashboard]')?.addEventListener('click', () => setTimeout(loadFtv, 100));
+    document.querySelector('[data-view=ai]')?.addEventListener('click', () => setTimeout(loadMcp1, 250));
+    document.addEventListener('click', (e) => { if (e.target?.dataset?.stab === 'integration') setTimeout(loadMcp1, 50); });
+    mt.onR24 && mt.onR24('goto', (d) => { document.querySelector(`[data-view=${d.view || 'timeline'}]`)?.click(); });
+  });
+})();

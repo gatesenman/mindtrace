@@ -19,14 +19,15 @@ function recentDir() {
   return path.join(os.homedir(), '.local', 'share');
 }
 
-async function scanWinRecent() {
+async function scanWinRecent(opts = {}) {
   const dir = recentDir();
   if (!fs.existsSync(dir)) return;
-  const files = fs.readdirSync(dir).filter(f => f.endsWith('.lnk')).slice(0, 40);
+  const files = fs.readdirSync(dir).filter(f => f.endsWith('.lnk')).slice(0, opts.maxAgeDays ? 300 : 40);
+  let added = 0;
   for (const f of files) {
     const full = path.join(dir, f);
     let st; try { st = fs.statSync(full); } catch { continue; }
-    if (Date.now() - st.mtimeMs > 2 * 86400000) continue;
+    if (Date.now() - st.mtimeMs > (opts.maxAgeDays || 2) * 86400000) continue;
     const name = f.replace(/\.lnk$/i, '');
     if (!DOC_EXT.test(name) && !/\./.test(name)) {
       // still record
@@ -34,7 +35,7 @@ async function scanWinRecent() {
     const key = full + st.mtimeMs;
     if (seen.has(key)) continue;
     seen.set(key, true);
-    bus?.push({
+    (opts.sink || ((e) => bus?.push(e)))({
       type: 'file',
       ts_start: st.mtimeMs,
       app: '最近使用',
@@ -44,7 +45,9 @@ async function scanWinRecent() {
       meta: { shortcut: true },
       source: 'recent'
     });
+    added++;
   }
+  return { added };
 }
 
 async function scanLinuxRecent() {
@@ -99,4 +102,5 @@ function start(opts = {}) {
 }
 function stop() { if (timer) clearInterval(timer); timer = null; }
 
-module.exports = { start, stop };
+async function backfill(opts = {}) { return process.platform === 'win32' ? scanWinRecent(opts) : { added: 0, unsupported: true }; }
+module.exports = { start, stop, backfill };

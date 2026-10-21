@@ -18,6 +18,14 @@ async function shoot(win) {
   const d0 = new Date(); const day = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, '0')}-${String(d0.getDate()).padStart(2, '0')}`;
   await new Promise(r => setTimeout(r, 2500));
   await win.webContents.executeJavaScript(`(async()=>{ ${process.argv.includes('--dark') ? "document.body.setAttribute('data-theme','dark');document.body.classList.add('theme-dark');" : ''} document.getElementById('onboarding')?.classList.add('hidden'); showView('timeline'); await loadTimeline({ forceDay:true, day:'${day}' }); ${process.argv.includes('--select') ? "setTimeout(()=>{ const b=[...document.querySelectorAll('.tlf-block')].find(x=>x.textContent.includes('微信')&&x.textContent.includes('张伟')); if(b){ b.click(); b.scrollIntoView({block:'center'}); } }, 600);" : ''} ${process.argv.includes('--compact') ? "localStorage.setItem('tl-density','compact'); document.getElementById('timeline-list').classList.add('compact');" : "localStorage.setItem('tl-density','comfortable'); document.getElementById('timeline-list').classList.remove('compact');"} })()`).catch(e => console.error(e));
+  const rq = process.argv.find(x => x.startsWith('--shot-recall='));
+  if (rq) {
+    const rw = require('./recallWindow').create(process.argv.includes('--dark') ? 'dark' : 'light');
+    await new Promise(r => rw.webContents.once('did-finish-load', r)); rw.show();
+    await rw.webContents.executeJavaScript(`window.__recallSet(${JSON.stringify(decodeURIComponent(rq.split('=')[1]))})`).catch(e => console.error(e));
+    await new Promise(r => setTimeout(r, 1200));
+    fs.writeFileSync(out, (await rw.webContents.capturePage()).toPNG()); console.log('SHOT', out); app.exit(0); return;
+  }
   const ev = process.argv.find(x => x.startsWith('--shot-eval='));
   if (ev) { await win.webContents.executeJavaScript(fs.readFileSync(ev.split('=')[1], 'utf8')).catch(e => console.error('shot-eval', e)); }
   await new Promise(r => setTimeout(r, 2500));

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: file:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+<title>知迹 · 回忆</title>
+<link rel="stylesheet" href="css/recall.css" />
+</head><body>
+<div class="rc">
+  <div class="rc-search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="q" autocomplete="off" spellcheck="false" placeholder="想找什么？比如「昨天下午那个 PDF」「上周看的 DeepSeek 定价文章」" />
+    <kbd>Esc</kbd>
+  </div>
+  <div class="rc-parse" id="parse"></div>
+  <div class="rc-list" id="list"></div>
+  <div class="rc-foot"><span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>Enter</kbd> 打开原件</span><span><kbd>Ctrl</kbd>+<kbd>Enter</kbd> 在知迹中查看</span><span class="rc-local">全部在本机检索</span></div>
+</div>
+<script src="js/recall.js"></script>
+</body></html>

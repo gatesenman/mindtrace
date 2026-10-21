@@ -412,6 +412,7 @@ function scheduleSummarize() {
 
 
 function registerNoteHotkey() {
+  try { require('./recallWindow').registerHotkey(config); } catch (e) { console.error('recall hotkey', e.message); }
   const accel = config.noteHotkey || 'CommandOrControl+Shift+N';
   try {
     globalShortcut.register(accel, () => {
@@ -975,7 +976,12 @@ function registerIpc() {
     const merge = (a, b) => { for (const k of Object.keys(b || {})) { if (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k])) a[k] = merge(a[k] || {}, b[k]); else a[k] = b[k]; } return a; };
     config = merge(config, patch); saveConfig(config);
   } });
-  require('./ipc24').register({ store, v23, pro, getConfig: () => config, saveConfig: () => saveConfig(config), getWindow: () => mainWindow });
+  require('./ipc24').register({ store, v23, pro, getConfig: () => config, saveConfig: () => saveConfig(config), getWindow: () => mainWindow, ensureApi: () => {
+    if (!config.api) config.api = { port: 17321 };
+    if (!config.api.token) config.api.token = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
+    if (!config.api.enabled) { config.api.enabled = true; saveConfig(config); try { apiServer.start({ getConfig }); mcpServer.start({ getConfig, hooks: { version: app.getVersion() } }); } catch (e) { appendLog('ERROR', 'ensureApi', e); } }
+    else saveConfig(config);
+  } });
   ipcMain.handle('pro-get-rules', () => ({ rules: config.privacy.rules || [], sensitiveDetection: config.privacy.sensitiveDetection !== false, localOnly: !!config.privacy.localOnly }));
   ipcMain.handle('pro-set-rules', safe((_e, o = {}) => {
     if (Array.isArray(o.rules)) config.privacy.rules = o.rules.filter(r => r && r.match).map(r => ({ match: String(r.match), scope: r.scope === 'site' ? 'site' : 'app', mode: ['none', 'title', 'full'].includes(r.mode) ? r.mode : 'none' }));

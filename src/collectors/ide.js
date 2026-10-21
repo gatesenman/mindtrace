@@ -63,11 +63,11 @@ function uriToPath(uri) {
   return s;
 }
 
-async function gitTodaySummary(cwd) {
+async function gitTodaySummary(cwd, since = 'midnight') {
   if (!cwd || !fs.existsSync(path.join(cwd, '.git'))) return null;
   try {
     const { stdout } = await execFileAsync('git', [
-      '-C', cwd, 'log', '--since=midnight', '--pretty=format:%h|%s|%an|%aI', '--no-show-signature'
+      '-C', cwd, 'log', '--since=' + since, '--pretty=format:%h|%s|%an|%aI', '--no-show-signature'
     ], { timeout: 8000, windowsHide: true, maxBuffer: 1024 * 1024 });
     const lines = stdout.trim().split('\n').filter(Boolean);
     return lines.slice(0, 50).map(l => {

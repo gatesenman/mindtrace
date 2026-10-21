@@ -40,3 +40,41 @@ body.sidebar-collapsed .net-pill span { display:none; }
 .sig-objlist .oa { display:flex; gap:3px; } .sig-objlist .oa span { font-size:10px; padding:1px 5px; border-radius:99px; background:var(--bg-sunken); color:var(--text-3); }
 .sig-objlist .on { text-align:right; color:var(--text-2); font-variant-numeric:tabular-nums; }
 @media (max-width: 1180px) { .sig-grid { grid-template-columns:repeat(3, minmax(0,1fr)); } }
+/* R3 回忆按钮 */
+.recall-btn { display:flex; align-items:center; gap:8px; width:100%; margin:0 0 6px; padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg-elevated); color:var(--text); font-size:var(--fs-sm); cursor:pointer; }
+.recall-btn svg { width:14px; height:14px; color:var(--brand); flex:none; }
+.recall-btn kbd { margin-left:auto; font-size:10px; color:var(--text-3); background:var(--bg-sunken); border:1px solid var(--border); border-radius:4px; padding:1px 5px; }
+.recall-btn:hover { border-color:var(--brand); }
+body.sidebar-collapsed .recall-btn span, body.sidebar-collapsed .recall-btn kbd { display:none; }
+/* R3 首日见效 */
+.ftv-card:empty { display:none; }
+.ftv-card { margin-bottom:14px; }
+.ftv-consent { display:grid; grid-template-columns:1fr auto; gap:18px; align-items:center; }
+.ftv-consent h3 { margin:0 0 4px; font-size:var(--fs-lg); }
+.ftv-consent p { margin:0; color:var(--text-2); font-size:var(--fs-sm); }
+.ftv-src { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.ftv-src span { font-size:var(--fs-xs); padding:3px 9px; border-radius:99px; background:var(--bg-sunken); color:var(--text-2); }
+.ftv-src span.done { background:color-mix(in srgb, var(--success) 12%, transparent); color:var(--success); }
+.ftv-src span.running { background:var(--brand-soft); color:var(--brand); }
+.ftv-note { font-size:11px; color:var(--text-3); margin-top:8px; }
+.ftv-head { display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
+.ftv-head h3 { margin:0; font-size:var(--fs-lg); } .ftv-head .tiny { color:var(--text-3); }
+.ftv-head .row-btns { margin-left:auto; }
+.ftv-grid { display:grid; grid-template-columns:180px 1fr 1fr 1fr; gap:14px; }
+.ftv-kpi { display:grid; gap:8px; }
+.ftv-kpi div { padding:10px 12px; border-radius:10px; background:var(--bg-sunken); font-size:var(--fs-xs); color:var(--text-2); }
+.ftv-kpi b { display:block; font-size:20px; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+.ftv-col h4 { margin:0 0 8px; font-size:var(--fs-xs); color:var(--text-3); font-weight:500; text-transform:none; }
+.ftv-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px dashed var(--border); font-size:var(--fs-sm); }
+.ftv-row:last-child { border-bottom:0; }
+.ftv-row .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ftv-row .ct { color:var(--text-3); font-variant-numeric:tabular-nums; font-size:var(--fs-xs); }
+.ftv-row .bar { height:4px; border-radius:2px; background:var(--brand); opacity:.55; }
+.ftv-days { display:flex; align-items:flex-end; gap:4px; height:46px; margin-top:6px; }
+.ftv-days i { flex:1; background:color-mix(in srgb, var(--brand) 55%, transparent); border-radius:3px 3px 0 0; min-height:2px; }
+/* R3 MCP 一键接入 */
+.mcp1 { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+.mcp1-t { display:flex; align-items:center; gap:10px; padding:12px; border:1px solid var(--border); border-radius:10px; }
+.mcp1-t .lg { width:34px; height:34px; border-radius:8px; display:grid; place-items:center; color:#fff; font-weight:700; font-size:13px; flex:none; }
+.mcp1-t .mt { flex:1; min-width:0; } .mcp1-t .mt b { display:block; font-size:var(--fs-sm); } .mcp1-t .mt span { font-size:11px; color:var(--text-3); }
+.mcp1-t .mt span.ok { color:var(--success); }
