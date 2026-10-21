@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const store = require('../main/store');
+const { shouldDropCapture, redactText } = require('../privacy/redact');
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -52,9 +53,9 @@ function listAudit({ kind, limit = 200 } = {}) {
 }
 
 /* ───────────── Privacy policy ───────────── */
-const SENSITIVE_APPS = /(1password|bitwarden|keepass|lastpass|dashlane|enpass|密码管理|网银|银行|alipay|支付宝|wallet|钱包|ukey|u盾)/i;
-const SENSITIVE_TITLES = /(inprivate|incognito|无痕|隐身窗口|private browsing|登录|sign in|password|密码|验证码|网上银行|online banking)/i;
-const SENSITIVE_SITES = /(bank|banking|paypal|alipay|pay\.|\/login|\/signin|accounts\.google|passport\.)/i;
+const SENSITIVE_APPS = /(1password|bitwarden|keepass|lastpass|dashlane|enpass|密码管理|网银|银行|alipay|支付宝|wallet|钱包|ukey|u盾|authy|microsoft authenticator)/i;
+const SENSITIVE_TITLES = /(inprivate|incognito|无痕|隐身窗口|private browsing|登录|sign in|password|密码|验证码|网上银行|online banking|支付|checkout|wallet)/i;
+const SENSITIVE_SITES = /(bank|banking|paypal|alipay|pay\.|\/login|\/signin|accounts\.google|passport\.|stripe\.com|checkout)/i;
 
 /** @returns {{mode:'none'|'title'|'full', reason:string}} */
 function evaluatePolicy(row, cfg = getConfig()) {
@@ -83,6 +84,14 @@ function applyPolicy(row) {
   let meta = row.meta;
   if (typeof meta === 'string') { try { meta = JSON.parse(meta); } catch { meta = null; } }
   if (meta && meta.isDemo) return row;
+  // R5：Recall 风格敏感内容整条丢弃（密码/证件/卡号/验证码/无痕）
+  try {
+    const d = shouldDropCapture(row, getConfig());
+    if (d.drop) {
+      audit('capture', 'blocked', row.app_name || row.url || row.type, { reason: 'sensitive-content', hits: d.hits, type: row.type });
+      return null;
+    }
+  } catch (_) {}
   const { mode, reason } = evaluatePolicy(row);
   if (mode === 'none') {
     audit('capture', 'blocked', row.app_name || row.url || row.type, { reason, type: row.type });

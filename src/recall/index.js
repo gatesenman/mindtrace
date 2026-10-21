@@ -2,6 +2,7 @@
 // 借鉴：Rewind「像搜索引擎一样回到过去」的全局快捷键唤起（Rewind 已于 2025-12-19 停服，见 https://rewind.ai/what-happened-to-rewind/）；
 //       Khoj 两段式检索（召回 → 重排，https://docs.khoj.dev/features/search）；按对象聚合（第 2 轮 objects 表）。
 const zh = require('../calendar/zhtime');
+const semantic = require('./semantic');
 const FILLER = /(写的|写过|看过的?|看到的?|看的|说的|说过|讲的|里面|里|在|那个|那篇|那份|那张|那条|那段|那次|我的|我们|我|看过的?|看到的?|打开过?的?|找一下|找找|帮我|之前|上次|好像|大概|一下|关于|有关|的|了|吗|呢|在哪|哪里|是什么)/g;
 const KIND_HINTS = [
   { re: /(链接|网页|网站|文章|页面|帖子|博客|url)/i, kind: 'web' },
@@ -104,7 +105,20 @@ function recall(store, q, { now = Date.now(), limit = 8 } = {}) {
     if (!g) groups.set(key, { key, kind, score: s, hits: 1, row, last: ts, sources: new Set([row.type]) });
     else { g.hits++; g.sources.add(row.type); if (s > g.score) { g.score = s; g.row = row; } g.last = Math.max(g.last, ts); }
   }
-  const out = [...groups.values()].map(g => ({ ...g, score: g.score + Math.min(0.3, Math.log2(1 + g.hits) * 0.1) })).sort((a, b) => b.score - a.score).slice(0, limit);
+  let out = [...groups.values()].map(g => ({ ...g, score: g.score + Math.min(0.3, Math.log2(1 + g.hits) * 0.1) }));
+  // R5：有关键词时用同义词+bigram 与 FTS 做 RRF 融合（无向量模型）
+  if (P.terms && out.length) {
+    const pool = out.map(g => ({ id: g.key, title: g.row.title, content: g.row.content, url: g.row.url, path: g.row.path, app: g.row.app, _g: g }));
+    const ftsOrder = out.map(g => ({ id: g.key, ...g.row }));
+    const fused = semantic.hybrid(ftsOrder, pool, P.terms, { limit: Math.max(limit, out.length) });
+    const byKey = new Map(out.map(g => [g.key, g]));
+    out = fused.map((f, i) => {
+      const g = byKey.get(f.id) || f.row?._g;
+      if (!g) return null;
+      return { ...g, score: g.score + (f.rrf * 2) + (f.semantic || 0) * 0.5, _rrf: f.rrf, _sem: f.semantic };
+    }).filter(Boolean);
+  }
+  out = out.sort((a, b) => b.score - a.score).slice(0, limit);
   return {
     query: P,
     results: out.map(g => ({
@@ -116,4 +130,4 @@ function recall(store, q, { now = Date.now(), limit = 8 } = {}) {
     }))
   };
 }
-module.exports = { recall, parseQuery };
+module.exports = { recall, parseQuery, semantic };
