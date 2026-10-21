@@ -1,7 +1,7 @@
 {
   "name": "mindtrace",
   "productName": "知迹 MindTrace",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "全景个人计算活动采集与 LLM Wiki 知识资产系统",
   "main": "src/main/main.js",
   "author": "MindTrace",
@@ -20,7 +20,7 @@
     "test:zhtime": "node tests/zhtime.test.js",
     "test:ai": "node tests/ai-client.js",
     "test:noise": "node tests/noise.js && node tests/timeline-feed.js && electron tests/noise-integration.js --no-sandbox",
-    "test:r24": "node tests/r1.js && node tests/r2.js && node tests/r3.js && electron tests/r2-integration.js --no-sandbox && electron tests/r3-integration.js --no-sandbox"
+    "test:r24": "node tests/r1.js && node tests/r2.js && node tests/r3.js && node tests/r4.js && electron tests/r2-integration.js --no-sandbox && electron tests/r3-integration.js --no-sandbox"
   },
   "build": {
     "appId": "com.mindtrace.app",

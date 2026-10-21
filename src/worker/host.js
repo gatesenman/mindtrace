@@ -14,6 +14,7 @@ const ide = require('../collectors/ide');
 const downloads = require('../collectors/downloads');
 const recentFiles = require('../collectors/recentFiles');
 const uia = require('../collectors/uia');
+const contextCollector = require('../collectors/context');
 const collectorStatus = require('../main/collectorStatus');
 const { appendLog } = require('../main/logger');
 const wiki = require('../wiki/engine');
@@ -74,6 +75,8 @@ function start(opts = {}) {
   else collectorStatus.disabled('files');
   if (cols.uia) safe('uia', () => uia.start({ getConfig, bus, windowTracker, intervalMs: 8000 }));
   else collectorStatus.disabled('uia');
+  if (cols.context) safe('context', () => contextCollector.start({ getConfig, windowTracker, intervalMs: 15000 }));
+  else collectorStatus.disabled('context');
 
   rollupTimer = setInterval(() => {
     wiki.runIncrementalRollups(getConfig()).catch(e => appendLog('ERROR', 'rollup', e));
@@ -94,6 +97,7 @@ function stop() {
   try { downloads.stop(); } catch (_) {}
   try { recentFiles.stop(); } catch (_) {}
   try { uia.stop(); } catch (_) {}
+  try { contextCollector.stop(); } catch (_) {}
   if (bus) bus.stop();
   bus = null;
   if (rollupTimer) clearInterval(rollupTimer);
@@ -105,4 +109,5 @@ function getBudget() { return bus ? bus.budget.snapshot() : null; }
 function getBus() { return bus; }
 function isStarted() { return started; }
 
-module.exports = { start, stop, getBudget, getBus, isStarted, notes };
+function getContext() { try { return contextCollector.snapshot(); } catch (_) { return null; } }
+module.exports = { start, stop, getBudget, getBus, isStarted, notes, getContext };

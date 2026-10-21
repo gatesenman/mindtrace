@@ -310,7 +310,9 @@ function insertActivity(row) {
       env = sig.envelope(row);
       const d = objDeduper().check({ ...row, id }, env);
       if (d.drop) return null;
-      if (m0 || row.meta == null) row = { ...row, meta: { ...(m0 || {}), layer: env.layer, obj: env.object?.hash || null, conf: env.confidence } };
+      let ctxTags = [];
+      try { ctxTags = require('../collectors/context').tags() || []; } catch (_) {}
+      if (m0 || row.meta == null) row = { ...row, meta: { ...(m0 || {}), layer: env.layer, obj: env.object?.hash || null, conf: env.confidence, ctx: ctxTags.length ? ctxTags : undefined } };
     }
   } catch (_) { env = null; }
   const now = Date.now();

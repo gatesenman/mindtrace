@@ -10,6 +10,9 @@ function register(ctx) {
     const p = await w.probe();
     return { ...p, host: w.info(), platform: process.platform };
   });
+  ipcMain.handle('r24-context', () => {
+    try { return require('../collectors/context').snapshot(); } catch (e) { return { error: e.message }; }
+  });
   ipcMain.handle('r24-signal-overview', () => {
     const { store } = ctx; const sig = require('../core/signal');
     const d0 = new Date(); d0.setHours(0, 0, 0, 0); const since = d0.getTime();

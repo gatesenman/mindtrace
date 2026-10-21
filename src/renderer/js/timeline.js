@@ -21,6 +21,17 @@
   /* 类别：克制的企业色板（浅/深两套由 CSS 变量提供） */
   const CATS = { code: '编码', comm: '沟通', doc: '文档', web: '浏览研究', meet: '会议', other: '其他' };
   const CAT_ORDER = ['code', 'doc', 'web', 'comm', 'meet', 'other'];
+  const LAYER_NAME = { focus: '注意力', content: '内容', authoring: '产出', artifact: '资源', communication: '沟通', context: '上下文' };
+  const LAYER_ORDER = ['focus', 'content', 'authoring', 'artifact', 'communication', 'context'];
+  function layerOf(a) {
+    const m = meta(a.meta);
+    if (m.layer && LAYER_NAME[m.layer]) return m.layer;
+    if (a.type === 'ide' || a.type === 'note' || a.type === 'clipboard') return 'authoring';
+    if (a.type === 'browser' || a.type === 'download' || a.type === 'file') return 'artifact';
+    if (a.type === 'uia' || a.type === 'screenshot' || a.type === 'document') return CHAT.test(appOf(a)) ? 'communication' : 'content';
+    if (a.type === 'window' && CHAT.test(appOf(a))) return 'communication';
+    return 'focus';
+  }
 
   /* ── 标题清洗 ── */
   const SUFFIX = [
@@ -204,12 +215,12 @@
     const sum = aiCache[b.id] || b.summary;
     const appsLine = b.apps.slice(0, 3).join(' · ');
     const h = Math.round(Math.min(1, Math.sqrt(b.dur / maxDur)) * 100);
-    return `<article class="tlf-block c-${b.cat}${b.low ? ' low' : ''}${state.sel === b.id ? ' sel' : ''}" data-bid="${esc(b.id)}" data-h="${new Date(b.start).getHours()}" id="act-${esc(b.items[0].id)}" tabindex="0" aria-label="${esc(hm(b.start) + ' ' + sum)}">
+    return `<article class="tlf-block c-${b.cat} l-${b.layer || 'focus'}${b.low ? ' low' : ''}${state.sel === b.id ? ' sel' : ''}" data-bid="${esc(b.id)}" data-h="${new Date(b.start).getHours()}" id="act-${esc(b.items[0].id)}" tabindex="0" aria-label="${esc(hm(b.start) + ' ' + sum)}">
       <div class="tlf-time"><b>${hm(b.start)}</b>${b.end - b.start >= 60000 ? `<span>${hm(b.end)}</span>` : ''}</div>
       <div class="tlf-rail" aria-hidden="true"><i class="dot"></i><i class="seg" style="--seg:${h}%"></i></div>
       <div class="tlf-main">
         <div class="tlf-l1"><span class="tlf-sum${aiCache[b.id] ? ' ai' : ''}" title="${esc(sum)}">${esc(sum)}</span>${b.demo ? '<span class="demo-tag">示例</span>' : ''}${b.dur >= 60000 && !b.lone ? `<span class="tlf-dur">${fmtShort(b.dur)}</span>` : ''}</div>
-        <div class="tlf-l2">${iconHtml(b, 'tlf-ico sm')}<span class="tlf-app">${esc(appsLine)}</span><span class="tlf-cat">${CATS[b.cat]}</span>${b.lone ? '' : objects(b)}</div>
+        <div class="tlf-l2">${iconHtml(b, 'tlf-ico sm')}<span class="tlf-app">${esc(appsLine)}</span><span class="tlf-layer l-${b.layer || 'focus'}">${LAYER_NAME[b.layer] || LAYER_NAME.focus}</span><span class="tlf-cat">${CATS[b.cat]}</span>${b.lone ? '' : objects(b)}</div>
         ${b.lone ? ideHtml(b.items[0]) : ''}
       </div>
       <div class="tlf-actions" role="toolbar" aria-label="操作">
@@ -219,8 +230,10 @@
       </div>
     </article>`;
   }
-  function overviewHtml(o, day) {
+  function overviewHtml(o, day, blocks = []) {
     const segs = CAT_ORDER.filter(c => o.byCat[c] > 0).map(c => ({ c, v: o.byCat[c], p: o.byCat[c] / (o.active || 1) }));
+    const byL = {}; for (const b of blocks) { byL[b.layer || 'focus'] = (byL[b.layer || 'focus'] || 0) + b.dur; }
+    const lsegs = LAYER_ORDER.filter(L => byL[L] > 0).map(L => ({ L, v: byL[L], p: byL[L] / (o.active || 1) }));
     const maxApp = o.apps[0] ? o.apps[0][1] : 1;
     const stat = (label, v, sub = '') => `<div class="tlo-stat"><div class="l">${label}</div><div class="v">${v}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
     return `<div class="tlo card">
@@ -228,8 +241,8 @@
         <div class="tlo-title"><b>${day}</b><span>活动概览</span></div>
         <div class="tlo-stats">${stat('活跃时长', fmtShort(o.active))}${stat('深度专注', fmtShort(o.focus), o.active ? Math.round(o.focus / o.active * 100) + '%' : '')}${stat('最长连续', fmtShort(o.longest))}${stat('任务段', o.count)}${o.idle ? stat('离开', fmtShort(o.idle)) : ''}</div>
       </div>
-      <div class="tlo-bar" role="img" aria-label="类别分布">${segs.map(s => `<i class="c-${s.c}" style="flex:${s.v}" title="${CATS[s.c]} ${fmtShort(s.v)}"></i>`).join('')}</div>
-      <div class="tlo-legend">${segs.map(s => `<span class="c-${s.c}"><i></i>${CATS[s.c]}<b>${fmtShort(s.v)}</b><em>${Math.round(s.p * 100)}%</em></span>`).join('')}</div>
+      <div class="tlo-bar" role="img" aria-label="信号层分布">${(lsegs.length ? lsegs : segs).map(s => s.L ? `<i class="l-${s.L}" style="flex:${s.v};background:var(--tl-${s.L})" title="${LAYER_NAME[s.L]} ${fmtShort(s.v)}"></i>` : `<i class="c-${s.c}" style="flex:${s.v}" title="${CATS[s.c]} ${fmtShort(s.v)}"></i>`).join('')}</div>
+      <div class="tlo-legend">${(lsegs.length ? lsegs.map(s => `<span class="l-${s.L}" style="--tl:var(--tl-${s.L})"><i style="background:var(--tl)"></i>${LAYER_NAME[s.L]}<b>${fmtShort(s.v)}</b><em>${Math.round(s.p * 100)}%</em></span>`) : segs.map(s => `<span class="c-${s.c}"><i></i>${CATS[s.c]}<b>${fmtShort(s.v)}</b><em>${Math.round(s.p * 100)}%</em></span>`)).join('')}</div>
       <div class="tlo-grid">
         <div><div class="cap">常用应用</div>${o.apps.map(([k, v]) => `<div class="tlo-row"><span class="n">${esc(k)}</span><span class="b"><i style="width:${Math.round(v / maxApp * 100)}%"></i></span><span class="d">${fmtShort(v)}</span></div>`).join('') || '<div class="tiny muted">—</div>'}</div>
         <div><div class="cap">项目</div>${o.projects.map(([k, v]) => `<div class="tlo-row"><span class="n">${svg(I.proj, 12)} ${esc(k)}</span><span class="d">${fmtShort(v)}</span></div>`).join('') || '<div class="tiny muted">暂未识别到项目</div>'}</div>
@@ -259,12 +272,13 @@
   function render(items, opts = {}) {
     ensureLayout();
     const list = $('timeline-list'); list.classList.add('tlf');
-    const { blocks, idles } = toBlocks(items, { withIdle: true });
+    const { blocks: rawBlocks, idles } = toBlocks(items, { withIdle: true });
+    const blocks = annotateLayers(rawBlocks);
     state.blocks = blocks;
     const ov = $('tl-overview');
     if (!blocks.length) { if (ov) ov.innerHTML = ''; list.innerHTML = `<div class="tlf-empty"><div class="ill">${svg('M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2', 28)}</div><b>这段时间还没有活动</b><span>开启采集项后，知迹会把你的电脑活动整理成按任务划分的时间线。也可以关闭「隐藏低价值事件」查看全部原始记录。</span></div>`; return; }
     const d0 = new Date(blocks[0].start); const same = blocks.every(b => new Date(b.start).toDateString() === d0.toDateString());
-    if (ov) ov.innerHTML = overviewHtml(overview(blocks, idles), same ? `${d0.getMonth() + 1} 月 ${d0.getDate()} 日 · 周${'日一二三四五六'[d0.getDay()]}` : `${blocks.length} 段活动`);
+    if (ov) ov.innerHTML = overviewHtml(overview(blocks, idles), same ? `${d0.getMonth() + 1} 月 ${d0.getDate()} 日 · 周${'日一二三四五六'[d0.getDay()]}` : `${blocks.length} 段活动`, blocks);
     const maxDur = Math.max(30 * 60000, ...blocks.map(b => b.dur));
     const rev = [...blocks].reverse(); let html = '', lastP = '', lastDay = '';
     for (let k = 0; k < rev.length; k++) {
@@ -345,5 +359,14 @@
     const ex = els.filter(s => Number(s.dataset.h) === h); const el = ex[ex.length - 1] || els.find(s => Number(s.dataset.h) < h) || els[els.length - 1];
     if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('highlight'); setTimeout(() => el.classList.remove('highlight'), 1600); }
   }
-  window.TLFeed = { render, toBlocks, summarize, cleanTitle, overview, jumpToHour, closeDetail };
+  function annotateLayers(blocks) {
+    for (const b of blocks) {
+      const votes = {};
+      for (const a of b.items) { const L = layerOf(a); votes[L] = (votes[L] || 0) + 1; }
+      b.layer = Object.entries(votes).sort((a, b) => b[1] - a[1])[0]?.[0] || 'focus';
+      b.ctx = [...new Set(b.items.flatMap(a => { try { const m = meta(a.meta); return m.ctx || []; } catch (_) { return []; } }))];
+    }
+    return blocks;
+  }
+  window.TLFeed = { render, toBlocks, summarize, cleanTitle, overview, jumpToHour, closeDetail, layerOf, annotateLayers, LAYER_NAME };
 })();

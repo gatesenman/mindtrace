@@ -9,9 +9,9 @@ const LAYERS = {
   authoring: { name: '产出', desc: '自己写了什么：笔记、IDE / Git、复制内容', collectors: ['notes', 'ide', 'clipboard'] },
   artifact: { name: '资源', desc: '碰过哪些对象：网页、文件、下载', collectors: ['browser', 'files', 'downloads'] },
   communication: { name: '沟通', desc: '聊天/邮件/会议的可见文本，隐私等级最高', collectors: [] },
-  context: { name: '上下文', desc: '日历、网络、电源 —— 只打标签，不上时间轴', collectors: [] }
+  context: { name: '上下文', desc: '空闲/电源/网络 —— 只打标签，不上时间轴', collectors: ['context'] }
 };
-const TYPE_LAYER = { window: 'focus', idle: 'focus', uia: 'content', screenshot: 'content', document: 'content', ocr: 'content', note: 'authoring', ide: 'authoring', git: 'authoring', clipboard: 'authoring', terminal: 'authoring', browser: 'artifact', web: 'artifact', file: 'artifact', download: 'artifact', calendar: 'context', context: 'context' };
+const TYPE_LAYER = { window: 'focus', idle: 'focus', uia: 'content', screenshot: 'content', document: 'content', ocr: 'content', note: 'authoring', ide: 'authoring', git: 'authoring', clipboard: 'authoring', terminal: 'authoring', browser: 'artifact', web: 'artifact', file: 'artifact', download: 'artifact', calendar: 'context', context: 'context', afk: 'context', power: 'context', network: 'context' };
 const CONFIDENCE = { window: 1, browser: 0.95, ide: 0.95, note: 1, document: 0.9, uia: 0.9, file: 0.9, download: 0.95, clipboard: 0.8, screenshot: 0.7, ocr: 0.7 };
 const CHAT_APPS = /微信|wechat|企业微信|wxwork|飞书|lark|feishu|钉钉|dingtalk|\bqq\b|outlook|teams|slack|telegram|foxmail|邮件|mail/i;
 const TRACK_PARAMS = /^(utm_\w+|spm|from|fbclid|gclid|yclid|_hsenc|_hsmi|mc_\w+|ref|ref_src|share_source|vd_source|si)$/i;

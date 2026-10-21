@@ -21,7 +21,8 @@ const DEFAULTS = {
     ide: false,
     downloads: false,
     files: false,
-    uia: false
+    uia: false,
+    context: false
   },
   noteFolders: [],
   downloadFolder: '',

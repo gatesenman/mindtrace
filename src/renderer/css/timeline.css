@@ -142,3 +142,21 @@
 #tl-scrubber .scrub-track i { background: color-mix(in srgb, var(--text-2) 38%, transparent); }
 #tl-scrubber .scrub-track i:hover { background: var(--brand); }
 #tl-scrubber .scrub-head b { font-weight: 600; font-size: var(--fs-sm); }
+
+
+/* 2.4 R4：信号层着色（注意力/内容/产出/资源/沟通/上下文） */
+:root {
+  --tl-focus: #3B82F6; --tl-content: #8B5CF6; --tl-authoring: #10B981;
+  --tl-artifact: #F59E0B; --tl-communication: #EC4899; --tl-context: #64748B;
+}
+[data-theme="dark"], body.theme-dark {
+  --tl-focus: #60A5FA; --tl-content: #A78BFA; --tl-authoring: #34D399;
+  --tl-artifact: #FBBF24; --tl-communication: #F472B6; --tl-context: #94A3B8;
+}
+.l-focus { --tl: var(--tl-focus); } .l-content { --tl: var(--tl-content); } .l-authoring { --tl: var(--tl-authoring); }
+.l-artifact { --tl: var(--tl-artifact); } .l-communication { --tl: var(--tl-communication); } .l-context { --tl: var(--tl-context); }
+.tlf-block[class*="l-"] { --tc: var(--tl); }
+.tlf-layer { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; font-size: var(--fs-xs); color: var(--tl); background: color-mix(in srgb, var(--tl) 12%, transparent); font-weight: 500; }
+.tlo-ctx { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: var(--fs-xs); color: var(--text-3); }
+.tlo-ctx span { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: var(--bg-sunken); }
+.tlo-ctx b { color: var(--text-2); font-weight: 600; }
