@@ -3,6 +3,7 @@ const path = require('path');
 const os = require('os');
 const status = require('../main/collectorStatus');
 const { extractExcerpt } = require('./downloads');
+const { resolveLnk } = require('../common/lnk');
 
 let timer = null;
 let getConfig = () => ({});
@@ -35,14 +36,26 @@ async function scanWinRecent(opts = {}) {
     const key = full + st.mtimeMs;
     if (seen.has(key)) continue;
     seen.set(key, true);
+    let target = full; let resolved = false; let resolveErr = null;
+    const lr = resolveLnk(full);
+    if (lr.ok && lr.target) { target = lr.target; resolved = true; }
+    else resolveErr = lr.error || 'unresolved';
+    const title = resolved ? require('path').basename(target) : name;
+    let content = null;
+    if (resolved && DOC_EXT.test(target)) {
+      try {
+        const tst = require('fs').statSync(target);
+        if (tst.size < 8 * 1024 * 1024) content = await extractExcerpt(target);
+      } catch (_) {}
+    }
     (opts.sink || ((e) => bus?.push(e)))({
       type: 'file',
       ts_start: st.mtimeMs,
       app: '最近使用',
-      title: name,
-      path: full,
-      content: null,
-      meta: { shortcut: true },
+      title,
+      path: target,
+      content,
+      meta: { shortcut: true, shortcutPath: full, resolved, resolveErr },
       source: 'recent'
     });
     added++;

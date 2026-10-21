@@ -133,6 +133,9 @@
   async function loadSettingsPro() {
     const [u, rr, jobs, info] = await Promise.all([mt.proUsage(), mt.proGetRules(), mt.proJobs(), mt.proMcpInfo()]);
     $('us-cost').textContent = '$' + (u.month.cost || 0).toFixed(2);
+    if ($('us-cost-cny')) $('us-cost-cny').textContent = u.month.costCny != null ? `≈ ¥${u.month.costCny}` : '';
+    if ($('us-today')) $('us-today').textContent = '$' + ((u.today && u.today.cost) || 0).toFixed(3);
+    if ($('us-today-meta')) $('us-today-meta').textContent = u.today ? `${u.today.calls || 0} 次 · ${(u.today.tokens || 0).toLocaleString()} tok` : '';
     $('us-tokens').textContent = (u.month.tokens || 0).toLocaleString();
     $('us-calls').textContent = u.month.calls || 0;
     $('us-budget').value = u.cap || 0;
@@ -140,7 +143,14 @@
     const pct = u.cap ? Math.min(100, Math.round(u.month.cost / u.cap * 100)) : 0;
     $('us-bar').style.width = pct + '%';
     $('us-bar').className = pct >= 90 ? 'err' : pct >= 70 ? 'warn' : '';
-    $('us-cap-text').textContent = u.cap ? `已用 ${pct}% · 预算 $${u.cap}/月，超出后自动停止调用` : '未设置预算（不限）';
+    $('us-cap-text').textContent = u.cap ? `已用 ${pct}% · 预算 $${u.cap}/月，剩余 $${(u.remaining || 0).toFixed(2)}，超出后自动停止调用` : '未设置预算（不限）';
+    const PURPOSE = { 'llm:chat': '问答', 'llm:extract': '抽取', 'llm:vision': '识图', 'llm:test': '测试', summarize: '摘要', rollup: '汇总', chat: '问答', extract: '抽取', vision: '识图', journal: '日报' };
+    if ($('us-purpose')) $('us-purpose').innerHTML = (u.byPurpose || []).map(m => `<tr><td>${esc(PURPOSE[m.purpose] || m.purpose || '其他')}</td><td class="num">${m.calls}</td><td class="num">${(m.tokens || 0).toLocaleString()}</td><td class="num">$${(m.cost || 0).toFixed(3)}</td></tr>`).join('') || empty('暂无');
+    if ($('us-daybar')) {
+      const days = (u.byDay || []).slice(0, 14).reverse();
+      const max = Math.max(0.001, ...days.map(d => d.cost || 0));
+      $('us-daybar').innerHTML = days.map(d => `<i style="height:${Math.max(4, Math.round((d.cost || 0) / max * 100))}%" title="$${(d.cost || 0).toFixed(3)} · ${d.calls} 次"></i>`).join('') || '<span class="tiny muted">近 14 日无调用</span>';
+    }
     $('us-models').innerHTML = (u.byModel || []).map(m => `<tr><td>${esc(m.model)}</td><td class="num">${m.calls}</td><td class="num">${((m.pt || 0) + (m.ct || 0)).toLocaleString()}</td><td class="num">$${(m.cost || 0).toFixed(3)}</td><td class="num">${Math.round(m.avg_ms || 0)} ms</td><td class="num">${m.failed || 0}</td></tr>`).join('') || empty('本月暂无调用');
     renderJobs(jobs);
     renderMcp(info);

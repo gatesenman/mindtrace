@@ -169,12 +169,23 @@ function recordUsage({ provider, model, purpose, messages, content, raw, latency
   audit('llm', ok ? 'sent' : 'failed', model, { purpose, prompt_tokens: pt, completion_tokens: ct, chars: (messages || []).reduce((n, m) => n + String(typeof m.content === 'string' ? m.content : '').length, 0) });
   return { prompt_tokens: pt, completion_tokens: ct, cost_usd: cost };
 }
+function dayStart(ts = Date.now()) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
 function usageSummary() {
   const month = monthSpend();
   const byModel = store.all(`SELECT model, provider, COUNT(*) calls, SUM(prompt_tokens) pt, SUM(completion_tokens) ct, SUM(cost_usd) cost, SUM(CASE WHEN ok=0 THEN 1 ELSE 0 END) failed, CAST(AVG(latency_ms) AS INTEGER) avg_ms FROM llm_usage WHERE ts>=? GROUP BY model, provider ORDER BY cost DESC`, [monthStart()]);
-  const recent = store.all(`SELECT * FROM llm_usage ORDER BY ts DESC LIMIT 30`);
+  const byPurpose = store.all(`SELECT purpose, COUNT(*) calls, SUM(cost_usd) cost, SUM(prompt_tokens+completion_tokens) tokens FROM llm_usage WHERE ts>=? GROUP BY purpose ORDER BY cost DESC`, [monthStart()]);
+  const byDay = store.all(`SELECT CAST((ts - (ts % 86400000)) AS INTEGER) day, COUNT(*) calls, SUM(cost_usd) cost, SUM(prompt_tokens+completion_tokens) tokens FROM llm_usage WHERE ts>=? GROUP BY day ORDER BY day DESC LIMIT 31`, [monthStart()]);
+  // 用本地日界（Asia/Shanghai 由调用方展示）；上面按 UTC 粗分，另给今日精确
+  const today = store.get(`SELECT COUNT(*) calls, COALESCE(SUM(cost_usd),0) cost, COALESCE(SUM(prompt_tokens+completion_tokens),0) tokens FROM llm_usage WHERE ts>=?`, [dayStart()]) || { calls: 0, cost: 0, tokens: 0 };
+  const recent = store.all(`SELECT * FROM llm_usage ORDER BY ts DESC LIMIT 40`);
   const cap = Number(getConfig().ai?.monthlyBudgetUsd || 0);
-  return { month: { cost: month.s, tokens: month.t, calls: month.n }, cap, byModel, recent };
+  const usdCny = Number(getConfig().ai?.usdCnyRate || 7.2);
+  return {
+    month: { cost: month.s, tokens: month.t, calls: month.n, costCny: +(month.s * usdCny).toFixed(2) },
+    today: { calls: today.calls || 0, cost: today.cost || 0, tokens: today.tokens || 0, costCny: +((today.cost || 0) * usdCny).toFixed(2) },
+    cap, usdCny, remaining: cap ? Math.max(0, cap - month.s) : null,
+    byModel, byPurpose, byDay, recent, prices: PRICES
+  };
 }
 
 /* ───────────── Jobs ───────────── */

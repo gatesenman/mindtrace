@@ -82,3 +82,7 @@ body.sidebar-collapsed .recall-btn span, body.sidebar-collapsed .recall-btn kbd 
 .r6-reports { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
 .r6-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .r6-out { max-height: 220px; overflow: auto; white-space: pre-wrap; background: var(--bg-sunken); padding: 10px; border-radius: 8px; }
+
+.us-daybar { display: flex; align-items: flex-end; gap: 3px; height: 48px; margin: 10px 0 6px; padding: 0 2px; }
+.us-daybar i { flex: 1; min-width: 6px; background: color-mix(in srgb, var(--brand) 55%, transparent); border-radius: 3px 3px 0 0; }
+.usage-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
