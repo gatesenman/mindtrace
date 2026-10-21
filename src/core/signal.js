@@ -66,10 +66,27 @@ function envelope(row) {
 
 function shingles(t) { const s = String(t || '').replace(/\s+/g, ''); const set = new Set(); for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2)); return set; }
 function sim(a, b) { const A = shingles(a), B = shingles(b); if (!A.size || !B.size) return 0; let i = 0; for (const x of A) if (B.has(x)) i++; return i / (A.size + B.size - i); }
+/** 64-bit simhash（字 bigram），海明距离越小越相似；用于跨来源近义去重 */
+function simhash(text) {
+  const s = String(text || '').toLowerCase().replace(/\s+/g, '');
+  if (!s) return 0n;
+  const bits = new Array(64).fill(0);
+  const toks = [];
+  for (let i = 0; i < s.length - 1; i++) toks.push(s.slice(i, i + 2));
+  if (!toks.length) toks.push(s);
+  for (const tok of toks) {
+    let h = 0xcbf29ce484222325n;
+    for (let i = 0; i < tok.length; i++) { h ^= BigInt(tok.charCodeAt(i)); h = BigInt.asUintN(64, h * 0x100000001b3n); }
+    for (let b = 0; b < 64; b++) bits[b] += (h >> BigInt(b)) & 1n ? 1 : -1;
+  }
+  let out = 0n; for (let b = 0; b < 64; b++) if (bits[b] > 0) out |= (1n << BigInt(b));
+  return out;
+}
+function hamming(a, b) { let x = a ^ b, n = 0; while (x) { n++; x &= x - 1n; } return n; }
 
 /** 对象级去重器：同一对象在窗口期内的内容层重复（来自任何适配器）只保留第一份，并累加触达次数 */
 class ObjectDeduper {
-  constructor({ windowMs = 10 * 60000, threshold = 0.85, visitPulseMs = 30 * 60000 } = {}) { Object.assign(this, { windowMs, threshold, visitPulseMs }); this.last = new Map(); this.stats = { seen: 0, dropped: 0, byLayer: {} }; }
+  constructor({ windowMs = 10 * 60000, threshold = 0.85, visitPulseMs = 30 * 60000, hashBits = 8 } = {}) { Object.assign(this, { windowMs, threshold, visitPulseMs, hashBits }); this.last = new Map(); this.stats = { seen: 0, dropped: 0, byLayer: {} }; }
   /** 内容层窗口对象 → 若标题与近期访问的网页一致，归并到该网页对象（同一网页无论来自历史、UIA 还是 OCR 都是一个对象） */
   resolve(env) {
     const o = env.object; if (!o) return env;
@@ -94,10 +111,14 @@ class ObjectDeduper {
         const s = sim(row.content, prev.content);
         // 已有更可信来源（如 UIA 0.9）时，OCR（0.7）近似内容直接丢弃；反之新内容更可信则保留
         if (s >= this.threshold && env.confidence <= prev.conf) res = { drop: true, reason: `same-content(${prev.type}→${row.type},${Math.round(s * 100)}%)`, dupOf: prev.id };
+        else if (env.confidence <= prev.conf && prev.hash != null) {
+          const h = hamming(simhash(row.content), prev.hash);
+          if (h <= this.hashBits) res = { drop: true, reason: `simhash(${prev.type}→${row.type},d=${h})`, dupOf: prev.id };
+        }
       }
     }
     if (res.drop) { this.stats.dropped++; L.dropped++; return res; }
-    this.last.set(k, { t, type: row.type, content: row.content ? String(row.content).slice(0, 4000) : (prev?.content || null), conf: Math.max(env.confidence, row.content ? 0 : (prev?.conf || 0)), id: row.id || null });
+    this.last.set(k, { t, type: row.type, content: row.content ? String(row.content).slice(0, 4000) : (prev?.content || null), conf: Math.max(env.confidence, row.content ? 0 : (prev?.conf || 0)), id: row.id || null, hash: row.content ? simhash(row.content) : (prev?.hash || null) });
     if (this.last.size > 3000) { const cut = t - 3 * 3600000; for (const [kk, v] of this.last) if (v.t < cut) this.last.delete(kk); }
     return res;
   }
@@ -114,4 +135,4 @@ function upsertObject(store, env, activityId) {
   if (ex) store.run(`UPDATE objects SET last_seen=?, touches=touches+1, title=COALESCE(?,title), layers=?, adapters=?, last_activity_id=? WHERE hash=?`, [env.span.start, o.title || null, addCsv(ex.layers, env.layer), addCsv(ex.adapters, env.source.adapter), activityId, o.hash]);
   else store.run(`INSERT INTO objects (hash,type,uri,title,first_seen,last_seen,touches,layers,adapters,last_activity_id) VALUES (?,?,?,?,?,?,1,?,?,?)`, [o.hash, o.type, o.uri, o.title || null, env.span.start, env.span.start, env.layer, env.source.adapter, activityId]);
 }
-module.exports = { LAYERS, envelope, layerOf, objectOf, normUrl, normPath, cleanTitle, ObjectDeduper, upsertObject, OBJECTS_SQL, sim };
+module.exports = { LAYERS, envelope, layerOf, objectOf, normUrl, normPath, cleanTitle, ObjectDeduper, upsertObject, OBJECTS_SQL, sim, simhash, hamming };
