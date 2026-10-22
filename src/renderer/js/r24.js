@@ -144,7 +144,7 @@
     let host = $('sig-grid')?.parentElement; if (!host) host = $('net-ledger')?.parentElement; if (!host) return;
     let el = $('r8-health');
     if (!el) { el = document.createElement('div'); el.id = 'r8-health'; el.className = 'r8-health'; host.insertBefore(el, host.firstChild); }
-    const IC = { ocr: '<path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 9h8M8 12h8M8 15h5"/>', uia: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 13h8M8 16h5"/>', hotkey: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>', mcp: '<path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5"/>', context: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', net: '<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/>' };
+    const IC = { content: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>', ocr: '<path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 9h8M8 12h8M8 15h5"/>', uia: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 13h8M8 16h5"/>', hotkey: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>', mcp: '<path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5"/>', context: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', net: '<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/>' };
     const cls = s => ({ ok: 'ok', degraded: 'warn', warn: 'warn', error: 'err' }[s] || 'off');
     const open = el.dataset.open || '';
     el.innerHTML = `<div class="r8-head"><b>运行健康</b><span class="r8-sum ${h.okCount === (h.items || []).length ? 'ok' : 'warn'}">${esc(h.summary || '')}</span>
@@ -156,7 +156,7 @@
           <div class="r8-row"><svg class="r8-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IC[it.key] || ''}</svg>
           <span class="n">${esc(it.name)}</span><span class="r8-pill ${cls(it.state)}">${esc(it.pill || it.state)}</span></div>
           <div class="s">${esc(it.short || '')}</div>
-          <div class="r8-more">${it.detail ? `<p>${esc(it.detail)}</p>` : ''}${it.action ? `<p class="a">下一步：${esc(it.action)}</p>` : ''}${it.warn ? `<p>${esc(it.warn)}</p>` : ''}</div>
+          <div class="r8-more">${it.detail ? String(it.detail).split('\n').map(l => `<p>${esc(l)}</p>`).join('') : ''}${it.action ? `<p class="a">下一步：${esc(it.action)}</p>` : ''}${it.warn ? `<p>${esc(it.warn)}</p>` : ''}</div>
           ${it.primary ? `<button class="r8-act" data-h="${it.state === 'error' ? 'refresh' : 'toggle'}">${esc(it.primary)}</button>` : ''}
         </div>`; }).join('')}</div>`;
     if (!el.dataset.bound) {

@@ -47,6 +47,34 @@ function uiaStatus() {
   };
 }
 
+/** 2.4.8：内容层诊断——窗口 → 文档名 → 路径 → 正文，逐层成功数，哪层断了一眼可见 */
+function contentStatus(cfg = {}) {
+  const c = require('../content/diag').snapshot();
+  let fg = {}; try { fg = require('../collectors/windowTracker').hostInfo(); } catch (_) {}
+  const w = c.windows || 0, named = c.docNamed || 0, pathN = c.pathResolved || 0, snip = c.snippet || 0;
+  const text = (c.uiaOk || 0) + (c.ocrOk || 0) + snip;
+  const consent = !!(cfg.collectors && (cfg.collectors.documents || cfg.collectors.uia));
+  let state = 'ok', short;
+  if (!cfg.collectors?.window) { state = 'off'; short = '窗口采集未开启'; }
+  else if (!w) { state = 'pending'; short = '等待首个窗口'; }
+  else if (!named) { state = 'warn'; short = '未识别出文档名'; }
+  else if (!consent) { state = 'degraded'; short = `识别 ${named} 个 · 未读正文`; }
+  else if (!text) { state = 'degraded'; short = `识别 ${named} 个 · 无正文`; }
+  else short = `${named} 个文档 · ${text} 段正文`;
+  const via = Object.entries(c.via || {}).map(([k, v]) => `${({ title: '标题', cmdline: '命令行', recent: '最近使用', mru: 'Office 记录', workspace: '工作区' })[k] || k} ${v}`).join('、');
+  const errs = Object.entries(c.lastErr || {}).map(([k, v]) => `${k}：${v}`).join('；');
+  const detail = [
+    `窗口 ${w} → 文档名 ${named} → 路径 ${pathN}${via ? `（${via}）` : ''} → 文件正文 ${snip}`,
+    `界面文字 成功 ${c.uiaOk || 0} / 空 ${c.uiaEmpty || 0} / 失败 ${c.uiaFail || 0} · OCR 成功 ${c.ocrOk || 0} / 失败 ${c.ocrFail || 0} · 网页补链接 ${c.browserJoined || 0} · 隐私跳过 ${c.privacySkipped || 0}`,
+    fg.legacy ? `前台窗口宿主不可用，已退回逐次调用：${fg.lastErr || ''}` : `前台窗口宿主 ${fg.alive ? '运行中' : '未启动'}${fg.timeouts ? ` · 超时 ${fg.timeouts}` : ''}`,
+    errs ? `最近错误：${errs}` : ''
+  ].filter(Boolean).join('\n');
+  return {
+    key: 'content', name: '内容采集', state, label: short, detail, short0: short, counts: c,
+    action: !consent ? '在采集中心开启「文档」或「界面文字」以读取正文' : (!text && w ? '开启截图 OCR 作为兜底，或安装中文 OCR 语言包' : undefined)
+  };
+}
+
 function hotkeyStatus(cfg = {}) {
   const recall = cfg.recallHotkey || 'CommandOrControl+Shift+Space';
   const note = cfg.noteHotkey || 'CommandOrControl+Shift+N';
@@ -110,7 +138,7 @@ function gateStatus(cfg = {}) {
   };
 }
 
-const SHORT_MAX = 12;
+const SHORT_MAX = 14;
 const PILL = { ok: '正常', degraded: '降级', warn: '降级', off: '未启用', pending: '未启用', error: '异常' };
 function shortLine(it) {
   const h = it.host || {};
@@ -120,6 +148,7 @@ function shortLine(it) {
     case 'hotkey': return '3 组快捷键已注册';
     case 'mcp': return it.enabled ? `端口 ${it.port}` : '本机 API 未开启';
     case 'context': return it.state === 'error' ? '读取失败' : it.label;
+    case 'content': return it.short0;
     case 'net': { const m = /外发 (\d+)/.exec(it.detail || ''); return `${it.label} · 外发 ${m ? m[1] : 0}`; }
     default: return it.label;
   }
@@ -133,6 +162,7 @@ function finalize(it) {
 
 function snapshot(cfg = {}, { mcpInstall } = {}) {
   const items = [
+    contentStatus(cfg),
     ocrStatus(),
     uiaStatus(),
     hotkeyStatus(cfg),
@@ -153,4 +183,4 @@ function snapshot(cfg = {}, { mcpInstall } = {}) {
   };
 }
 
-module.exports = { snapshot, shortLine, SHORT_MAX, PILL, ocrStatus, uiaStatus, hotkeyStatus, mcpStatus, contextStatus, gateStatus, pretty };
+module.exports = { contentStatus, snapshot, shortLine, SHORT_MAX, PILL, ocrStatus, uiaStatus, hotkeyStatus, mcpStatus, contextStatus, gateStatus, pretty };

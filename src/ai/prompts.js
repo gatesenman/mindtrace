@@ -15,7 +15,7 @@ ${activities}
 请输出 JSON（不要 markdown 围栏）：
 {
   "title": "一句话标题",
-  "summary": "今日概览（200字内）",
+  "summary": "今日概览（200字内，点名具体文档/页面/会话并说明内容，不要只罗列应用）",
   "highlights": ["要点"],
   "topics": ["主题"],
   "todos": ["可执行待办"],

@@ -10,6 +10,7 @@ let bus = null;
 let lastHash = '';
 let lastTs = 0;
 let lastMs = null, lastTrunc = false;
+let lastOcrFallback = 0;
 
 // 2.4：常驻 PowerShell UIA 宿主（原来每 8 秒新起一个 powershell.exe）。
 // 借鉴 Screenpipe 事件驱动规格：无障碍树遍历设硬时限（这里 350ms），超时就用已拿到的部分；密码框按 IsPassword 属性跳过。
@@ -64,7 +65,7 @@ while ($true) {
 let host = null;
 function uiaHost(spawnImpl) { if (spawnImpl) { host && host.stop(); host = new PsHost({ name: 'uia', script: UIA_SCRIPT, timeoutMs: 3000, idleExitMs: 0, spawnImpl }); } if (!host) host = new PsHost({ name: 'uia', script: UIA_SCRIPT, timeoutMs: 4000, idleExitMs: 10 * 60000 }); return host; }
 async function captureWinUia(budgetMs = 350) {
-  try { const r = await uiaHost().request(String(budgetMs)); return r && r.ok ? r : {}; } catch (_) { return {}; }
+  try { const r = await uiaHost().request(String(budgetMs)); return r && r.ok ? r : { error: (r && r.error) || 'uia' }; } catch (e) { return { error: e.message }; }
 }
 
 async function tick(windowTracker) {
@@ -89,6 +90,14 @@ async function tick(windowTracker) {
     const data = await captureWinUia(cfg.privacy?.uiaBudgetMs || 350);
     title = data.title || title; lastMs = data.ms; lastTrunc = !!data.truncated;
     text = (data.texts || []).join('\n').slice(0, 8000);
+    const dg = require('../content/diag');
+    if (data.error) { dg.inc('uiaFail'); dg.err('uia', data.error); }
+    else if (text.replace(title, '').replace(/\s+/g, '').length >= require('../core/noise').UIA_MIN_LEN) dg.inc('uiaOk');
+    else {
+      dg.inc('uiaEmpty');
+      // 2.4.8：UIA 读不到正文（自绘界面/Electron 应用/PDF）→ 已授权截屏时用 Windows OCR 兜底，2 分钟一次
+      if (cfg.collectors?.screenshots && now - lastOcrFallback > 120000) { lastOcrFallback = now; try { require('./screenshots').capture(true).catch(() => {}); } catch (_) {} }
+    }
   } else {
     // Linux: no UIA — record title-only marker infrequently
     text = '';
@@ -104,13 +113,15 @@ async function tick(windowTracker) {
   // Skip password-ish
   if (/password|密码|•{3,}/i.test(text)) text = '[已隐藏-可能含密码字段]';
 
+  // 2.4.8：正文挂回当前窗口事件（时间线/日报按文档看到内容）
+  try { if (cur && cur.id && text) require('../content/enrich').attachText(cur.id, text, 'uia', { cfg }); } catch (_) {}
   bus?.push({
     type: 'uia',
     ts_start: now,
     app: cur?.app || '前台应用',
     title,
     content: text || null,
-    meta: { process: cur?.process, len: (text || '').length, uia_ms: lastMs, truncated: lastTrunc },
+    meta: { winId: cur?.id, process: cur?.process, len: (text || '').length, uia_ms: lastMs, truncated: lastTrunc },
     source: 'uia'
   });
   status.ok('uia', title.slice(0, 40));

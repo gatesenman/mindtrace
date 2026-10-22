@@ -75,6 +75,7 @@ async function localOcr(cfg, id, file, phash, appName, title) {
     return null;
   }
   const r = await winocr.recognize(file, { key: phash });
+  try { const dg = require('../content/diag'); if (r.ok && r.text) dg.inc('ocrOk'); else { dg.inc('ocrFail'); if (!r.ok) dg.err('ocr', r.error); } } catch (_) {}
   if (!r.ok) { status.ok('screenshots', '本地 OCR 不可用：' + String(r.error).slice(0, 40)); return null; }
   if (!r.text || r.text.replace(/\s/g, '').length < 12) return { empty: true };
   const sim = lastOcr.app === appName ? tdedup.similarity(r.text, lastOcr.text) : 0;
@@ -87,6 +88,8 @@ async function localOcr(cfg, id, file, phash, appName, title) {
   else description = `本地 OCR · ${r.lines.length} 行${newLines.length < r.lines.length ? `（新增 ${newLines.length} 行）` : ''} · ${r.ms}ms`;
   if (cfg.privacy?.autoRedact !== false) text = redactText(text);
   store.updateScreenshotDescription(id, description, text);
+  // 2.4.8：OCR 文字挂到同一窗口事件上，时间线/日报可直接看到"看了什么"
+  try { const cur = windowTracker.getCurrent(); if (cur && cur.id && (!title || cur.title === title)) require('../content/enrich').attachText(cur.id, text, 'ocr', { cfg }); } catch (_) {}
   return { ok: true, duplicate: sim >= 0.92, lines: r.lines.length, newLines: newLines.length, ms: r.ms };
 }
 

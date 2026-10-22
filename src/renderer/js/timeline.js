@@ -121,7 +121,17 @@
       else if (CHAT.test(ap) && i.type === 'window' && !GENERIC.test(t)) people.push(t);
       else if (DOCAPP.test(ap) && /\.[a-z0-9]{2,5}$/i.test(t)) files.push(t);
     }
-    for (const p of b.paths) files.push(base(p));
+    // 2.4.8：采集端已按应用解析出文档/会话对象（meta.doc），优先使用
+    for (const i of b.items) {
+      const d = meta(i.meta).doc; if (!d || !d.name) continue;
+      if (d.kind === 'chat') people.push(d.name);
+      else if (d.kind === 'code') { files.push(d.name); if (d.project) projects.push(d.project); }
+      else if (d.kind !== 'explorer' && d.kind !== 'browser') files.push(d.name);
+      else if (d.kind === 'browser' && d.cloud) files.push(d.name);
+    }
+    for (const p of b.paths) if (!/\.(png|jpe?g|lnk)$/i.test(p)) files.push(base(p));
+    b.snippet = '';
+    for (const i of b.items) { if (i.type === 'clipboard' || i.type === 'ide' || i.type === 'download' || !i.content) continue; const c = String(i.content).replace(/\s+/g, ' ').trim(); if (c.length >= 12) { b.snippet = c.slice(0, 140); break; } }
     b.files = [...new Set(files)]; b.projects = [...new Set(projects)]; b.people = [...new Set(people)];
     b.kind = b.lone ? 'ide' : b.cat; // 兼容旧选择器
     b.demo = b.items.some(isDemo);
@@ -143,6 +153,8 @@
       case 'web': {
         const n = b.urls.length || b.titles.length || 1;
         const t = (b.titles[0] || b.hosts[0] || '').replace(/\s*[-|·]\s*(GitHub|知乎|Electron)$/, '');
+        const cloud = b.files.filter(Boolean);
+        if (cloud.length) return `在线文档：${list3(cloud, 2, '个文档')}`;
         return n > 1 ? `浏览 ${n} 个页面：${t}${b.titles.length > 1 ? ' 等' : ''}` : `浏览：${t || '网页'}`;
       }
       case 'doc': {
@@ -153,7 +165,8 @@
         const da = b.apps.filter(x => !/资源管理器|explorer|^文档$/i.test(x))[0];
         return f.length ? (da ? `在 ${da} 编辑 ${list3(f, 2, '个文件')}` : `打开 ${list3(f, 2, '个文件')}`) : `查看文档 ${b.titles[0] || ''}`;
       }
-      default: return b.titles.length > 1 ? `使用 ${b.app}：${list3(b.titles, 2, '个窗口')}` : `使用 ${b.app}${b.titles[0] ? ' · ' + b.titles[0] : ''}`;
+      default: if (b.files.length) return `在 ${b.app} 处理 ${list3(b.files, 2, '个文档')}`;
+        return b.titles.length > 1 ? `使用 ${b.app}：${list3(b.titles, 2, '个窗口')}` : `使用 ${b.app}${b.titles[0] ? ' · ' + b.titles[0] : ''}`;
     }
   }
 
@@ -221,6 +234,7 @@
       <div class="tlf-main">
         <div class="tlf-l1"><span class="tlf-sum${aiCache[b.id] ? ' ai' : ''}" title="${esc(sum)}">${esc(sum)}</span>${b.demo ? '<span class="demo-tag">示例</span>' : ''}${b.dur >= 60000 && !b.lone ? `<span class="tlf-dur">${fmtShort(b.dur)}</span>` : ''}</div>
         <div class="tlf-l2">${iconHtml(b, 'tlf-ico sm')}<span class="tlf-app">${esc(appsLine)}</span><span class="tlf-layer l-${b.layer || 'focus'}">${LAYER_NAME[b.layer] || LAYER_NAME.focus}</span><span class="tlf-cat">${CATS[b.cat]}</span>${b.lone ? '' : objects(b)}</div>
+        ${b.snippet && !b.lone ? `<div class="tlf-snip" title="${esc(b.snippet)}">${esc(b.snippet)}${b.snippet.length >= 140 ? '…' : ''}</div>` : ''}
         ${b.lone ? ideHtml(b.items[0]) : ''}
       </div>
       <div class="tlf-actions" role="toolbar" aria-label="操作">
@@ -299,7 +313,7 @@
   }
   async function aiSummaries(blocks) {
     if (!window.mindtrace || !window.mindtrace.tl) return;
-    const cand = blocks.filter(b => b.items.length > 2 && !b.lone && !aiCache[b.id]).slice(0, 20).map(b => ({ id: b.id, app: b.apps.join('/'), type: CATS[b.cat], minutes: Math.round(b.dur / 60000), titles: b.titles.slice(0, 12) }));
+    const cand = blocks.filter(b => b.items.length > 2 && !b.lone && !aiCache[b.id]).slice(0, 20).map(b => ({ id: b.id, app: b.apps.join('/'), type: CATS[b.cat], minutes: Math.round(b.dur / 60000), titles: b.titles.slice(0, 12), docs: b.files.slice(0, 8), snippet: b.snippet || '' }));
     if (!cand.length) return;
     try { const r = await window.mindtrace.tl('ai-summary', cand); Object.assign(aiCache, r || {}); for (const [id, s] of Object.entries(r || {})) { const el = document.querySelector(`.tlf-block[data-bid="${CSS.escape(id)}"] .tlf-sum`); if (el) { el.textContent = s; el.classList.add('ai'); el.title = 'AI 摘要'; } } } catch (_) {}
   }
@@ -319,7 +333,7 @@
     if (state.sel !== b.id) return;
     const acts = d.acts && d.acts.length ? d.acts : b.items;
     aside.querySelector('.tlf-d-body').innerHTML = `
-      <h4>原始事件 <span>${acts.length}</span></h4><div class="tlf-d-raw">${acts.map(i => rawRow(i) + (i.content && !['window', 'ide'].includes(i.type) ? `<pre class="tlf-pre">${esc(String(i.content).slice(0, 1200))}</pre>` : '')).join('')}</div>
+      <h4>原始事件 <span>${acts.length}</span></h4><div class="tlf-d-raw">${acts.map(i => rawRow(i) + (i.content && i.type !== 'ide' ? `<pre class="tlf-pre">${esc(String(i.content).slice(0, 1200))}</pre>` : '')).join('')}</div>
       <h4>截屏与识别文本</h4>${(d.shots || []).length ? d.shots.map(s => `<div class="tlf-shot"><div class="tiny muted">${hm(s.taken_at)} · ${esc(s.window_title || '')}</div>${s.description ? `<div>${esc(s.description)}</div>` : ''}${s.ocr_text ? `<pre class="tlf-pre">${esc(String(s.ocr_text).slice(0, 800))}</pre>` : ''}</div>`).join('') : '<div class="tiny muted">此时段没有截屏（截屏采集默认关闭）。</div>'}
       <h4>相关知识实体</h4>${(d.entities || []).length ? `<div class="tlf-ents">${d.entities.map(e => `<button class="tlf-ent" data-eid="${esc(e.id)}">${esc(e.name)}<span>${esc(e.type || '')}</span></button>`).join('')}</div>` : '<div class="tiny muted">暂无匹配的知识库实体。</div>'}`;
   }

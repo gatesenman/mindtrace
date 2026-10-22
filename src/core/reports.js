@@ -29,7 +29,7 @@ function layerOf(row) {
 function summarizeDay(storeApi, dateStr) {
   const { day, from, to, key } = dayBounds(dateStr);
   const acts = storeApi.all(
-    `SELECT id,type,started_at,ended_at,duration_ms,app_name,window_title,url,file_path,content,meta FROM activities WHERE started_at>=? AND started_at<=? ORDER BY started_at ASC LIMIT 800`,
+    `SELECT id,type,started_at,ended_at,duration_ms,app_name,process_name,window_title,url,file_path,content,meta FROM activities WHERE started_at>=? AND started_at<=? ORDER BY started_at ASC LIMIT 2000`,
     [from, to]
   );
   if (!acts.length) {
@@ -62,6 +62,7 @@ function summarizeDay(storeApi, dateStr) {
   const topApps = [...byApp.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
   const topFiles = [...files.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
   const topSites = [...sites.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const docs = require('../content/docDigest').digest(acts, { limit: 12 });
   const fmt = (ms) => { const m = Math.round(ms / 60000); return m < 60 ? `${m} 分钟` : `${Math.floor(m / 60)} 小时 ${m % 60} 分`; };
   const md = [
     `# ${key} 日报`,
@@ -70,6 +71,9 @@ function summarizeDay(storeApi, dateStr) {
     '',
     '## 今天做了什么',
     ...topApps.map(([k, v]) => `- **${k}** · ${fmt(v)}`),
+    '',
+    docs.length ? '## 处理的文档与页面' : '',
+    ...require('../content/docDigest').toMarkdown(docs),
     '',
     topFiles.length ? '## 反复打开的文件' : '',
     ...topFiles.map(([k, v]) => `- \`${k}\`（${v} 次）`),
@@ -91,7 +95,7 @@ function summarizeDay(storeApi, dateStr) {
     status: 'OK', period: 'daily', period_key: key,
     title: `${key} 日报 · ${topApps[0]?.[0] || '活动'}`,
     markdown: md,
-    stats: { activities: acts.length, activeMs, topApps, topFiles: topFiles.map(([k]) => k), topSites: topSites.map(([k]) => k) }
+    stats: { activities: acts.length, activeMs, docs: docs.map(d => d.name), topApps, topFiles: topFiles.map(([k]) => k), topSites: topSites.map(([k]) => k) }
   };
 }
 
@@ -120,6 +124,7 @@ function summarizeWeek(storeApi, dateStr) {
     byApp.set(app, (byApp.get(app) || 0) + dur);
   }
   const topApps = [...byApp.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const docs = require('../content/docDigest').digest(acts, { limit: 12 });
   const fmt = (ms) => { const m = Math.round(ms / 60000); return m < 60 ? `${m} 分钟` : `${(m / 60).toFixed(1)} 小时`; };
   const md = [
     `# 周报 · ${start.format('MM/DD')} – ${end.format('MM/DD')}`,

@@ -86,15 +86,15 @@ function register({ store, getConfig, setConfig, v23 }) {
   ipcMain.handle('tl-ai-summary', async (_e, blocks = []) => {
     const cfg = getConfig(); const U = require('../common/util');
     const out = {}; const need = [];
-    for (const b of blocks.slice(0, 30)) { const c = U.kvGet('tlsum:' + b.id, null); if (c) out[b.id] = c; else need.push(b); }
+    for (const b of blocks.slice(0, 30)) { const c = U.kvGet('tlsum2:' + b.id, null); if (c) out[b.id] = c; else need.push(b); }
     if (!need.length || !cfg.ai?.apiKey || cfg.ai?.autoSummarize === false) return out;
     try {
       if (!v23.budget.allow('extract', cfg, 1500)) return out;
       const { chatCompletion, parseJsonLoose } = require('../ai/client');
-      const prompt = '为每个活动块写一句不超过 24 字的中文动作摘要（如“在微信与3位联系人聊天”），只用给出的信息，不要编造。输出 JSON 对象 {id: 摘要}。\n' + JSON.stringify(need.map(b => ({ id: b.id, app: b.app, type: b.type, minutes: b.minutes, titles: (b.titles || []).slice(0, 6) })));
+      const prompt = '为每个活动块写一句不超过 28 字的中文动作摘要，必须点出具体文档/页面/会话名（如“在 Word 修改《Q3 预算说明》”），可参考 snippet 内容说明在做什么，只用给出的信息，不要编造。输出 JSON 对象 {id: 摘要}。\n' + JSON.stringify(need.map(b => ({ id: b.id, app: b.app, type: b.type, minutes: b.minutes, titles: (b.titles || []).slice(0, 6), docs: (b.docs || []).slice(0, 6), snippet: String(b.snippet || '').slice(0, 140) })));
       const r = await chatCompletion(cfg, [{ role: 'user', content: prompt }], { max_tokens: 800, temperature: 0.2, purpose: 'timeline' });
       const j = parseJsonLoose(r.content) || {};
-      for (const b of need) if (typeof j[b.id] === 'string' && j[b.id].trim()) { out[b.id] = j[b.id].trim().slice(0, 40); U.kvSet('tlsum:' + b.id, out[b.id]); }
+      for (const b of need) if (typeof j[b.id] === 'string' && j[b.id].trim()) { out[b.id] = j[b.id].trim().slice(0, 40); U.kvSet('tlsum2:' + b.id, out[b.id]); }
     } catch (e) { console.error('[tl-ai-summary]', e.message); }
     return out;
   });

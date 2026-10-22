@@ -69,6 +69,8 @@
 .tlf-sum.ai::before { content: '✦ '; color: var(--brand); font-size: var(--fs-xs); }
 .tlf-dur { flex: none; margin-left: auto; font-size: var(--fs-sm); color: var(--text-2); font-variant-numeric: tabular-nums; font-weight: 500; }
 .tlf-l2 { display: flex; flex-wrap: wrap; gap: 6px 8px; margin-top: 5px; align-items: center; font-size: var(--fs-sm); color: var(--text-3); min-width: 0; }
+.tlf-snip { margin-top: 4px; font-size: var(--fs-sm); color: var(--text-3); line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; padding-left: 8px; border-left: 2px solid var(--border, rgba(127,127,127,.25)); }
+#timeline-list.compact .tlf-snip { display: none; }
 .tlf-app { color: var(--text-2); }
 .tlf-cat { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; font-size: var(--fs-xs); color: var(--tc); background: color-mix(in srgb, var(--tc) 11%, transparent); font-weight: 500; }
 .tlf-ico { width: 32px; height: 32px; border-radius: 8px; display: inline-grid; place-items: center; overflow: hidden; background: var(--bg-sunken); color: var(--text-2); font-weight: 600; font-size: 13px; border: 1px solid var(--border); flex: none; }
