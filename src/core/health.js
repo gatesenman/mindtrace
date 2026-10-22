@@ -110,6 +110,27 @@ function gateStatus(cfg = {}) {
   };
 }
 
+const SHORT_MAX = 12;
+const PILL = { ok: '正常', degraded: '降级', warn: '降级', off: '未启用', pending: '未启用', error: '异常' };
+function shortLine(it) {
+  const h = it.host || {};
+  switch (it.key) {
+    case 'ocr': return it.state === 'degraded' ? '需 Windows 环境' : it.state === 'ok' ? `已识别 ${h.requests || 0} 次` : '待首次截图';
+    case 'uia': return it.state === 'degraded' ? '仅 Windows 可用' : it.state === 'ok' ? `已读取 ${h.requests || 0} 次` : '采集器未开启';
+    case 'hotkey': return '3 组快捷键已注册';
+    case 'mcp': return it.enabled ? `端口 ${it.port}` : '本机 API 未开启';
+    case 'context': return it.state === 'error' ? '读取失败' : it.label;
+    case 'net': { const m = /外发 (\d+)/.exec(it.detail || ''); return `${it.label} · 外发 ${m ? m[1] : 0}`; }
+    default: return it.label;
+  }
+}
+function finalize(it) {
+  let short = shortLine(it) || '';
+  if ([...short].length > SHORT_MAX) short = [...short].slice(0, SHORT_MAX - 1).join('') + '…';
+  const bad = ['degraded', 'warn', 'error'].includes(it.state);
+  return { ...it, pill: PILL[it.state] || it.state, short, primary: bad ? (it.state === 'error' ? '重新检测' : '查看处理') : null };
+}
+
 function snapshot(cfg = {}, { mcpInstall } = {}) {
   const items = [
     ocrStatus(),
@@ -118,16 +139,18 @@ function snapshot(cfg = {}, { mcpInstall } = {}) {
     mcpStatus(cfg, mcpInstall),
     contextStatus(),
     gateStatus(cfg)
-  ];
+  ].map(finalize);
+  const okN = items.filter(i => i.state === 'ok').length;
   const order = { error: 0, warn: 1, degraded: 2, off: 3, pending: 4, ok: 5 };
   const worst = items.slice().sort((a, b) => (order[a.state] ?? 9) - (order[b.state] ?? 9))[0];
   return {
     overall: worst?.state || 'ok',
-    summary: worst ? `${worst.name}：${worst.label}` : '全部正常',
+    summary: okN === items.length ? `${items.length} 项全部正常` : `${items.length} 项中 ${okN} 项正常`,
+    okCount: okN,
     items,
     platform: process.platform,
     verifiedOnWindows: false
   };
 }
 
-module.exports = { snapshot, ocrStatus, uiaStatus, hotkeyStatus, mcpStatus, contextStatus, gateStatus, pretty };
+module.exports = { snapshot, shortLine, SHORT_MAX, PILL, ocrStatus, uiaStatus, hotkeyStatus, mcpStatus, contextStatus, gateStatus, pretty };

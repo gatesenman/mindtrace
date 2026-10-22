@@ -88,18 +88,37 @@ body.sidebar-collapsed .recall-btn span, body.sidebar-collapsed .recall-btn kbd 
 .usage-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 
 .r8-health { margin-bottom: 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated); }
-.r8-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; }
-.r8-head b { font-size: var(--fs-md); }
-.r8-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
-.r8-item { padding: 10px 12px; border-radius: 8px; background: var(--bg-sunken); border-left: 3px solid var(--border); }
-.r8-item.ok { border-left-color: #10B981; }
-.r8-item.degraded, .r8-item.warn { border-left-color: #F59E0B; }
-.r8-item.off, .r8-item.pending { border-left-color: #94A3B8; }
-.r8-item.error { border-left-color: #EF4444; }
-.r8-item .n { font-weight: 600; font-size: var(--fs-sm); color: var(--text-1); }
-.r8-item .l { font-size: var(--fs-xs); color: var(--text-2); margin-top: 2px; }
-.r8-item .d, .r8-item .w, .r8-item .a { font-size: var(--fs-xs); color: var(--text-3); margin-top: 4px; line-height: 1.4; }
-.r8-item .a { color: var(--brand); }
+.r8-head { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+.r8-head b { font-size: var(--fs-md); color: var(--text-1); }
+.r8-sum { font-size: var(--fs-xs); color: var(--text-2); }
+.r8-sum.ok::before, .r8-sum.warn::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: #10B981; }
+.r8-sum.warn::before { background: #F59E0B; }
+.r8-tag { font-size: 11px; color: var(--text-3); border: 1px dashed var(--border); border-radius: 999px; padding: 1px 8px; cursor: help; }
+.r8-refresh { margin-left: auto; background: none; border: 0; color: var(--text-3); cursor: pointer; font-size: var(--fs-xs); }
+.r8-refresh:hover { color: var(--brand); }
+.r8-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: start; }
+.r8-item { padding: 10px 12px; border-radius: 10px; background: var(--bg-sunken); border: 1px solid transparent; cursor: pointer; transition: border-color .15s, background .15s; }
+.r8-item:hover { border-color: var(--border); }
+.r8-item.open { border-color: var(--border); background: var(--bg-elevated); }
+.r8-row { display: flex; align-items: center; gap: 8px; }
+.r8-ic { width: 16px; height: 16px; color: var(--text-3); flex: none; }
+.r8-item .n { font-weight: 600; font-size: var(--fs-sm); color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.r8-pill { margin-left: auto; font-size: 11px; line-height: 18px; padding: 0 8px; border-radius: 999px; white-space: nowrap; }
+.r8-pill.ok { color: #047857; background: rgba(16,185,129,.12); }
+.r8-pill.warn { color: #B45309; background: rgba(245,158,11,.14); }
+.r8-pill.err { color: #B91C1C; background: rgba(239,68,68,.12); }
+.r8-pill.off { color: var(--text-3); background: rgba(148,163,184,.16); }
+.r8-item .s { font-size: var(--fs-xs); color: var(--text-2); margin: 4px 0 0 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.r8-more { display: none; margin: 8px 0 0 24px; font-size: var(--fs-xs); color: var(--text-3); line-height: 1.5; }
+.r8-more p { margin: 0 0 4px; }
+.r8-more .a { color: var(--text-2); }
+.r8-item.open .r8-more { display: block; }
+.r8-act { margin: 8px 0 0 24px; font-size: 11px; padding: 2px 10px; border-radius: 6px; border: 1px solid var(--brand); color: var(--brand); background: transparent; cursor: pointer; }
+.r8-act:hover { background: var(--brand); color: #fff; }
+[data-theme="dark"] .r8-pill.ok, .theme-dark .r8-pill.ok { color: #6EE7B7; background: rgba(16,185,129,.18); }
+[data-theme="dark"] .r8-pill.warn, .theme-dark .r8-pill.warn { color: #FCD34D; background: rgba(245,158,11,.18); }
+[data-theme="dark"] .r8-pill.err, .theme-dark .r8-pill.err { color: #FCA5A5; background: rgba(239,68,68,.18); }
+@media (max-width: 900px) { .r8-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .chip.ok { background: color-mix(in srgb, #10B981 18%, transparent); color: #059669; }
 .chip.degraded, .chip.warn { background: color-mix(in srgb, #F59E0B 18%, transparent); color: #B45309; }
 .chip.error { background: color-mix(in srgb, #EF4444 18%, transparent); color: #B91C1C; }

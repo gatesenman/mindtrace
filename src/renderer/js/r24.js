@@ -107,6 +107,11 @@
     mt.onR24 && mt.onR24('goto', (d) => { document.querySelector(`[data-view=${d.view || 'timeline'}]`)?.click(); });
   });
 })();
+// ── R6 日报入口 + R8/R10 运行健康 ──
+(function () {
+  const mt = window.mindtrace; if (!mt || !mt.r24) return;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   // R6：日报/周报入口（采集中心信号卡下方）
   async function mountReports() {
     const host = $('sig-objects'); if (!host || $('r6-reports')) return;
@@ -133,18 +138,40 @@
       } catch (err) { out.textContent = String(err.message || err); }
     });
   }
-  const _rs = refreshSignal;
-  refreshSignal = async () => { await _rs(); mountReports(); };
+  if (window.r24 && window.r24.refreshSignal) { const _rs = window.r24.refreshSignal; window.r24.refreshSignal = async () => { await _rs(); mountReports(); }; }
   async function refreshHealth() {
     let h; try { h = await mt.r24('health'); } catch (_) { return; }
     let host = $('sig-grid')?.parentElement; if (!host) host = $('net-ledger')?.parentElement; if (!host) return;
     let el = $('r8-health');
     if (!el) { el = document.createElement('div'); el.id = 'r8-health'; el.className = 'r8-health'; host.insertBefore(el, host.firstChild); }
-    const ST = { ok: '正常', degraded: '降级', off: '未开', pending: '待测', warn: '注意', error: '异常' };
-    el.innerHTML = `<div class="r8-head"><b>运行健康</b><span class="chip ${h.overall}">${esc(ST[h.overall] || h.overall)} · ${esc(h.summary || '')}</span>
-      <span class="tiny">${h.verifiedOnWindows ? '' : '【未在 Windows 真机验证】平台 ' + esc(h.platform || '')}</span></div>
-      <div class="r8-grid">${(h.items || []).map(it => `<div class="r8-item ${it.state}"><div class="n">${esc(it.name)}</div><div class="l">${esc(it.label)}</div><div class="d">${esc(it.detail || '')}</div>${it.warn ? `<div class="w">${esc(it.warn)}</div>` : ''}${it.action ? `<div class="a">${esc(it.action)}</div>` : ''}</div>`).join('')}</div>`;
+    const IC = { ocr: '<path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 9h8M8 12h8M8 15h5"/>', uia: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 13h8M8 16h5"/>', hotkey: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>', mcp: '<path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5"/>', context: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', net: '<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/>' };
+    const cls = s => ({ ok: 'ok', degraded: 'warn', warn: 'warn', error: 'err' }[s] || 'off');
+    const open = el.dataset.open || '';
+    el.innerHTML = `<div class="r8-head"><b>运行健康</b><span class="r8-sum ${h.okCount === (h.items || []).length ? 'ok' : 'warn'}">${esc(h.summary || '')}</span>
+      ${h.verifiedOnWindows ? '' : `<span class="r8-tag" title="当前平台 ${esc(h.platform || '')}，尚未在 Windows 真机验证">未经真机验证</span>`}
+      <button class="r8-refresh btn-ghost tiny" data-h="refresh" title="重新检测">刷新</button></div>
+      <div class="r8-grid">${(h.items || []).map(it => {
+        const tip = [it.label, it.detail, it.warn, it.action].filter(Boolean).join('\n');
+        return `<div class="r8-item ${cls(it.state)}${open === it.key ? ' open' : ''}" data-k="${esc(it.key)}" title="${esc(tip)}">
+          <div class="r8-row"><svg class="r8-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IC[it.key] || ''}</svg>
+          <span class="n">${esc(it.name)}</span><span class="r8-pill ${cls(it.state)}">${esc(it.pill || it.state)}</span></div>
+          <div class="s">${esc(it.short || '')}</div>
+          <div class="r8-more">${it.detail ? `<p>${esc(it.detail)}</p>` : ''}${it.action ? `<p class="a">下一步：${esc(it.action)}</p>` : ''}${it.warn ? `<p>${esc(it.warn)}</p>` : ''}</div>
+          ${it.primary ? `<button class="r8-act" data-h="${it.state === 'error' ? 'refresh' : 'toggle'}">${esc(it.primary)}</button>` : ''}
+        </div>`; }).join('')}</div>`;
+    if (!el.dataset.bound) {
+      el.dataset.bound = '1';
+      el.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-h]');
+        if (b && b.dataset.h === 'refresh') { refreshHealth(); return; }
+        const card = e.target.closest('.r8-item'); if (!card) return;
+        el.dataset.open = el.dataset.open === card.dataset.k ? '' : card.dataset.k;
+        el.querySelectorAll('.r8-item').forEach(c => c.classList.toggle('open', c.dataset.k === el.dataset.open));
+      });
+    }
   }
-  const _boot = async () => { try { await refreshNet(); await refreshSignal(); await refreshHealth(); } catch (_) {} };
+  window.__refreshHealth = refreshHealth;
+  const _boot = async () => { try { await window.r24?.refreshNet?.(); await window.r24?.refreshSignal?.(); } catch (_) {} try { await refreshHealth(); } catch (_) {} };
   setTimeout(_boot, 400);
   setInterval(() => { refreshHealth().catch(() => {}); }, 30000);
+})();
