@@ -441,6 +441,14 @@ async function loadKnowledge() {
   else await loadCardsTab();
 }
 
+window.MTApp = Object.assign(window.MTApp || {}, {
+  openJournal: async (id) => {
+    showView('knowledge');
+    showKnowledgeTab('journals');
+    await loadJournalsTab(id);
+  }
+});
+
 function showKnowledgeTab(tab) {
   knowledgeTab = tab;
   document.querySelectorAll('#knowledge-tabs .chip').forEach(c => c.classList.toggle('active', c.dataset.ktab === tab));
@@ -645,6 +653,8 @@ function bindCiteClicks(root) {
 }
 
 function readObCollectors() {
+  const downloads = !!$('ob-c-downloads')?.checked;
+  const filesEl = $('ob-c-files');
   return {
     window: $('ob-c-window').checked,
     browser: $('ob-c-browser').checked,
@@ -652,8 +662,9 @@ function readObCollectors() {
     clipboard: $('ob-c-clipboard').checked,
     screenshots: $('ob-c-screenshots').checked,
     ide: !!$('ob-c-ide')?.checked,
-    downloads: !!$('ob-c-downloads')?.checked,
-    files: !!$('ob-c-downloads')?.checked
+    downloads,
+    files: filesEl ? !!filesEl.checked : downloads,
+    uia: !!$('ob-c-uia')?.checked
   };
 }
 

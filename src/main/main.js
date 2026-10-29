@@ -406,6 +406,36 @@ function stopCollectors() {
 
 
 let reportTimer = null;
+function notifyReportReady(report, kind = 'daily') {
+  try {
+    const { showToast } = require('../core/notify');
+    const isEmpty = report?.status === 'NO_DATA';
+    const title = kind === 'weekly'
+      ? (report?.title || '本周周报已生成')
+      : (report?.title || '今日日报已生成');
+    const body = isEmpty
+      ? (kind === 'weekly' ? '本周暂无活动记录' : '今日暂无活动记录')
+      : '已写入报告 · 点击查看';
+    showToast({
+      Notification,
+      title,
+      body,
+      log: appendLog,
+      onClick: () => {
+        try {
+          mainWindow?.show();
+          mainWindow?.focus();
+          mainWindow?.webContents.send('open-view', {
+            view: 'knowledge',
+            tab: 'journals',
+            id: report?.journalId,
+            period_key: report?.period_key
+          });
+        } catch (e) { appendLog('ERROR', 'report-toast-click', e); }
+      }
+    });
+  } catch (e) { appendLog('ERROR', 'report-toast', e); }
+}
 function scheduleReports() {
   if (reportTimer) clearInterval(reportTimer);
   reportTimer = setInterval(() => {
@@ -417,9 +447,13 @@ function scheduleReports() {
         const last = config._lastDailyReportKey;
         if (last !== key) {
           config._lastDailyReportKey = key;
-          require('../core/reports').draftDaily();
-          require('../core/commitments').ingestRecent({ hours: 24 });
-          if (now.getDay() === 5) require('../core/reports').draftWeekly();
+          const daily = require('../core/reports').draftDaily();
+          notifyReportReady(daily, 'daily');
+          try { require('../core/commitments').ingestRecent({ hours: 24 }); } catch (e) { appendLog('ERROR', 'commitments', e); }
+          if (now.getDay() === 5) {
+            const weekly = require('../core/reports').draftWeekly();
+            notifyReportReady(weekly, 'weekly');
+          }
           saveConfig(config);
         }
       }

@@ -1,5 +1,5 @@
 /**
- * 2.4.8 · 窗口事件 → 文档对象 + 路径 + 正文片段 + 浏览器 URL
+ * 2.4.9 · 窗口事件 → 文档对象 + 路径 + 正文片段 + 浏览器 URL
  * 由 windowTracker 在新窗口入库后异步调用，不阻塞采集循环。
  */
 const path = require('path');
@@ -52,19 +52,30 @@ async function enrichWindow(id, row, { cfg = {}, cmdline = '', resolveOpts = {},
 }
 
 /** 浏览器：用历史库里同标题的访问记录给窗口事件补 URL（History 每 60s 拉一次，所以延后执行） */
-function joinBrowser(id, { st = store(), windowMs = 15 * 60000 } = {}) {
-  const w = st.get(`SELECT id, started_at, ended_at, duration_ms, window_title, url, meta, process_name FROM activities WHERE id=?`, [id]);
-  if (!w || w.url) return null;
-  const page = jmeta(w.meta).doc?.page || require('./titleParse').parseBrowser(w.window_title || '').page;
-  if (!page) return null;
-  const end = (w.ended_at || (w.started_at + (w.duration_ms || 0))) + 120000;
-  const cands = st.all(`SELECT url, window_title, started_at FROM activities WHERE type='browser' AND started_at BETWEEN ? AND ? AND url IS NOT NULL ORDER BY started_at DESC LIMIT 60`, [w.started_at - windowMs, end]);
-  const p = page.toLowerCase();
-  const hit = cands.find(c => (c.window_title || '').toLowerCase() === p) || cands.find(c => { const t = (c.window_title || '').toLowerCase(); return t && (t.startsWith(p.slice(0, 24)) || p.startsWith(t.slice(0, 24))); });
-  if (!hit) return null;
-  st.run(`UPDATE activities SET url=? WHERE id=? AND url IS NULL`, [hit.url, id]);
-  diag.inc('browserJoined');
-  return hit.url;
+function joinBrowser(id, { st = store(), windowMs = 15 * 60000, cfg = {}, fetchPage = true, fetchImpl } = {}) {
+  const w = st.get(`SELECT id, started_at, ended_at, duration_ms, window_title, url, meta, process_name, content FROM activities WHERE id=?`, [id]);
+  if (!w) return null;
+  let url = w.url || null;
+  if (!url) {
+    const page = jmeta(w.meta).doc?.page || require('./titleParse').parseBrowser(w.window_title || '').page;
+    if (!page) return null;
+    const end = (w.ended_at || (w.started_at + (w.duration_ms || 0))) + 120000;
+    const cands = st.all(`SELECT url, window_title, started_at FROM activities WHERE type='browser' AND started_at BETWEEN ? AND ? AND url IS NOT NULL ORDER BY started_at DESC LIMIT 60`, [w.started_at - windowMs, end]);
+    const p = page.toLowerCase();
+    const hit = cands.find(c => (c.window_title || '').toLowerCase() === p) || cands.find(c => { const t = (c.window_title || '').toLowerCase(); return t && (t.startsWith(p.slice(0, 24)) || p.startsWith(t.slice(0, 24))); });
+    if (!hit) return null;
+    url = hit.url;
+    st.run(`UPDATE activities SET url=? WHERE id=? AND url IS NULL`, [url, id]);
+    diag.inc('browserJoined');
+  }
+  // 2.4.9：补网页正文（异步，不阻塞；仅本地 / 闸门 / 隐私仍生效）
+  if (fetchPage && url && contentConsent(cfg)) {
+    try {
+      const pb = require('./pageBody');
+      Promise.resolve(pb.attachPageBody(id, url, { cfg, st, fetchImpl })).catch(e => diag.err('pageBody', e));
+    } catch (e) { diag.err('pageBody', e); }
+  }
+  return url;
 }
 
 /** UIA/OCR 读到的正文挂到当前窗口事件上（没有本地文件的应用：微信会话、网页、在线文档） */

@@ -255,7 +255,7 @@ async function tick() {
       const enrich = require('../content/enrich');
       const row = { app_name: fg.app || fg.process, process_name: fg.process, window_title: fg.title };
       enrich.enrichWindow(id, row, { cfg, cmdline: fg.cmd }).then(r => {
-        if (r && r.parsed && r.parsed.kind === 'browser') { const t = setTimeout(() => { try { enrich.joinBrowser(id); } catch (_) {} }, 75000); t.unref?.(); }
+        if (r && r.parsed && r.parsed.kind === 'browser') { const t = setTimeout(() => { try { enrich.joinBrowser(id, { cfg: getConfig() }); } catch (_) {} }, 75000); t.unref?.(); }
       }).catch(e => require('../content/diag').err('enrich', e));
     } catch (_) {}
     onChange({ type: 'window', current });

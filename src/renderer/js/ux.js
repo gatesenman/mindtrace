@@ -177,12 +177,16 @@
   window.MTUX.settingsTab = settingsTab;
 
   /* ── 引导：预设 + Key 为空时禁用测试连接 ── */
-  const PRESETS = { light: ['window', 'browser'], recommended: ['window', 'browser', 'documents', 'ide', 'downloads'], full: ['window', 'browser', 'documents', 'ide', 'downloads', 'clipboard', 'screenshots'] };
-  document.querySelectorAll('[data-preset]').forEach(card => card.onclick = () => {
-    document.querySelectorAll('[data-preset]').forEach(c => c.classList.toggle('active', c === card));
-    const on = PRESETS[card.dataset.preset];
-    ['window', 'browser', 'documents', 'clipboard', 'ide', 'downloads', 'screenshots'].forEach(k => { const el = $('ob-c-' + k); if (el) el.checked = on.includes(k); });
-  });
+  const PRESETS = { light: ['window', 'browser'], recommended: ['window', 'browser', 'documents', 'files', 'uia', 'ide', 'downloads'], full: ['window', 'browser', 'documents', 'files', 'uia', 'ide', 'downloads', 'clipboard', 'screenshots'] };
+  function applyObPreset(name) {
+    const on = PRESETS[name] || PRESETS.recommended;
+    document.querySelectorAll('[data-preset]').forEach(c => c.classList.toggle('active', c.dataset.preset === name));
+    ['window', 'browser', 'documents', 'clipboard', 'ide', 'downloads', 'screenshots', 'uia', 'files'].forEach(k => { const el = $('ob-c-' + k); if (el) el.checked = on.includes(k); });
+  }
+  document.querySelectorAll('[data-preset]').forEach(card => card.onclick = () => applyObPreset(card.dataset.preset));
+  // 进入采集步时默认选中「推荐」，避免只记应用名
+  try { if (document.querySelector('[data-preset=recommended]')) applyObPreset('recommended'); } catch (_) {}
+  window.MTUX.applyObPreset = applyObPreset; window.MTUX.CAPTURE_PRESETS = PRESETS;
   const syncTest = () => { const has = !!$('ob-ai-key').value.trim(); $('ob-test').disabled = !has; $('ob-test').title = has ? '' : '请先填写 API Key'; };
   $('ob-ai-key')?.addEventListener('input', syncTest); syncTest();
 

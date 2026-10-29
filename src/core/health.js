@@ -65,13 +65,13 @@ function contentStatus(cfg = {}) {
   const errs = Object.entries(c.lastErr || {}).map(([k, v]) => `${k}：${v}`).join('；');
   const detail = [
     `窗口 ${w} → 文档名 ${named} → 路径 ${pathN}${via ? `（${via}）` : ''} → 文件正文 ${snip}`,
-    `界面文字 成功 ${c.uiaOk || 0} / 空 ${c.uiaEmpty || 0} / 失败 ${c.uiaFail || 0} · OCR 成功 ${c.ocrOk || 0} / 失败 ${c.ocrFail || 0} · 网页补链接 ${c.browserJoined || 0} · 隐私跳过 ${c.privacySkipped || 0}`,
+    `界面文字 成功 ${c.uiaOk || 0} / 空 ${c.uiaEmpty || 0} / 失败 ${c.uiaFail || 0} · OCR 成功 ${c.ocrOk || 0} / 失败 ${c.ocrFail || 0} · 网页补链接 ${c.browserJoined || 0} · 网页正文 ${c.browserBody || 0} · 隐私跳过 ${c.privacySkipped || 0}`,
     fg.legacy ? `前台窗口宿主不可用，已退回逐次调用：${fg.lastErr || ''}` : `前台窗口宿主 ${fg.alive ? '运行中' : '未启动'}${fg.timeouts ? ` · 超时 ${fg.timeouts}` : ''}`,
     errs ? `最近错误：${errs}` : ''
   ].filter(Boolean).join('\n');
   return {
     key: 'content', name: '内容采集', state, label: short, detail, short0: short, counts: c,
-    action: !consent ? '在采集中心开启「文档」或「界面文字」以读取正文' : (!text && w ? '开启截图 OCR 作为兜底，或安装中文 OCR 语言包' : undefined)
+    action: !consent ? '推荐预设已含文档与界面文字；请在采集中心开启以读取正文' : (!text && w ? '开启截图 OCR 作兜底，或检查网络正文（非仅本地）' : undefined)
   };
 }
 

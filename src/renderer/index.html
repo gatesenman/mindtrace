@@ -478,32 +478,34 @@
           <h1>知迹 MindTrace</h1>
           <p class="muted">把每天散落的操作，变成可复用的知识资产</p>
           <div class="value-list">
-            <div class="v"><div>1</div><div><b>授权后安静记录</b><div class="tiny">窗口、浏览器、文档、剪贴板、截屏——你说了算</div></div></div>
-            <div class="v"><div>2</div><div><b>AI 结构化沉淀</b><div class="tiny">日刊、主题、知识卡片与 Wiki，给未来的你和其他 AI 用</div></div></div>
-            <div class="v"><div>3</div><div><b>隐私优先，数据在本地</b><div class="tiny">默认不上云；可暂停、可黑名单、可脱敏</div></div></div>
+            <div class="v"><div>1</div><div><b>授权后安静记录</b><div class="tiny">窗口、文档、界面文字、浏览器——你说了算</div></div></div>
+            <div class="v"><div>2</div><div><b>可复用的知识资产</b><div class="tiny">时间线、日刊、Wiki，给未来的你和其他 AI 用</div></div></div>
+            <div class="v"><div>3</div><div><b>隐私优先，数据在本地</b><div class="tiny">默认不上云；可暂停、黑名单、仅本地</div></div></div>
           </div>
           <button class="btn primary" id="ob-next1">开始设置</button>
         </div>
         <div id="ob-step2" class="ob-step hidden">
           <h1>选择要记录的内容</h1>
-          <p class="muted">默认全部关闭。请主动开启你需要的项，随时可改。</p>
+          <p class="muted">默认选「推荐」：记下文档名与正文，才能总结。随时可改。</p>
           <div class="preset-cards" id="ob-presets">
-            <button type="button" class="preset-card" data-preset="light"><b>轻量</b><span>窗口 + 浏览器</span><em>最低打扰，适合先试用</em></button>
-            <button type="button" class="preset-card" data-preset="recommended"><b>推荐</b><span>+ 文档 · IDE · 下载</span><em>完整还原工作上下文</em></button>
-            <button type="button" class="preset-card" data-preset="full"><b>全面</b><span>+ 剪贴板 · 截屏识图</span><em>覆盖微信等不可读库的软件</em></button>
+            <button type="button" class="preset-card" data-preset="light"><b>轻量</b><span>窗口 + 浏览器</span><em>最低打扰，先试用</em></button>
+            <button type="button" class="preset-card active" data-preset="recommended"><b>推荐</b><span>+ 文档 · 界面文字 · IDE · 下载</span><em>能认出文档并读正文，便于总结</em></button>
+            <button type="button" class="preset-card" data-preset="full"><b>全面</b><span>+ 剪贴板 · 截屏识图</span><em>覆盖微信等不便读库的软件</em></button>
           </div>
           <details class="ob-detail"><summary>逐项调整</summary>
           <div class="collector-pick">
-            <label><input type="checkbox" id="ob-c-window" /><div><div class="name">窗口与应用时间线</div><div class="desc">记录前台应用、窗口标题与停留时长</div></div></label>
-            <label><input type="checkbox" id="ob-c-browser" /><div><div class="name">浏览器历史</div><div class="desc">读取 Chrome / Edge 本地历史（只读副本）</div></div></label>
-            <label><input type="checkbox" id="ob-c-documents" /><div><div class="name">文档与笔记</div><div class="desc">关注最近打开或修改的文档、笔记、电子书</div></div></label>
-            <label><input type="checkbox" id="ob-c-clipboard" /><div><div class="name">剪贴板</div><div class="desc">记录文本与链接（自动脱敏敏感信息）</div></div></label>
-            <label><input type="checkbox" id="ob-c-ide" /><div><div class="name">IDE 会话</div><div class="desc">VS Code/Cursor 工作区与当日 Git 提交</div></div></label>
-            <label><input type="checkbox" id="ob-c-downloads" /><div><div class="name">下载与最近文件</div><div class="desc">Downloads 与系统最近文档（文本抽取）</div></div></label>
-            <label><input type="checkbox" id="ob-c-screenshots" /><div><div class="name">定时截屏 + AI 识图</div><div class="desc">用于微信等不便读库的软件；本地保存。识图需下一步填写多模态视觉模型</div></div></label>
+            <label><input type="checkbox" id="ob-c-window" checked /><div><div class="name">窗口与应用时间线</div><div class="desc">前台应用、窗口标题、停留时长</div></div></label>
+            <label><input type="checkbox" id="ob-c-browser" checked /><div><div class="name">浏览器历史</div><div class="desc">Chrome / Edge 本地历史（只读副本）</div></div></label>
+            <label><input type="checkbox" id="ob-c-documents" checked /><div><div class="name">文档与笔记</div><div class="desc">认出打开的文档并抽取正文片段</div></div></label>
+            <label><input type="checkbox" id="ob-c-files" checked /><div><div class="name">最近打开的文件</div><div class="desc">系统最近文档列表，补全路径</div></div></label>
+            <label><input type="checkbox" id="ob-c-uia" checked /><div><div class="name">界面文字</div><div class="desc">读取前台窗口可见文字（密码框自动跳过）</div></div></label>
+            <label><input type="checkbox" id="ob-c-ide" checked /><div><div class="name">IDE 会话</div><div class="desc">VS Code / Cursor 工作区与当日 Git 提交</div></div></label>
+            <label><input type="checkbox" id="ob-c-downloads" checked /><div><div class="name">下载文件夹</div><div class="desc">Downloads 新增文件</div></div></label>
+            <label><input type="checkbox" id="ob-c-clipboard" /><div><div class="name">剪贴板</div><div class="desc">文本与链接（自动脱敏）</div></div></label>
+            <label><input type="checkbox" id="ob-c-screenshots" /><div><div class="name">定时截屏 + 识图</div><div class="desc">用于微信等；识图需多模态模型</div></div></label>
           </div>
           </details>
-          <p class="legal">数据默认仅保存在本机。截屏与剪贴板可能包含敏感信息，请按需开启并配置黑名单。知迹不会在未授权时采集。</p>
+          <p class="legal">数据默认仅本机。敏感内容自动丢弃；可黑名单、可暂停、可开「仅本地」。未授权不采集。</p>
           <div class="row gap">
             <button class="btn ghost" id="ob-back2">上一步</button>
             <button class="btn link" id="ob-skip2">我先都关掉，稍后再开</button>

@@ -56,7 +56,15 @@
   });
   function reloadCurrent() { const v = document.querySelector('#nav .nav-item.active')?.dataset.view; if (v) window.showView(v); }
   mt.onV23?.('v23-changed', () => { refreshBadge(); const v = document.querySelector('#nav .nav-item.active')?.dataset.view; if (['kb', 'calendar', 'inbox', 'memory', 'dashboard'].includes(v)) window.showView(v); });
-  mt.onV23?.('open-view', (d) => { if (d?.view) showView(d.view); });
+  mt.onV23?.('open-view', (d) => {
+    if (!d?.view) return;
+    if (d.view === 'journals' || (d.view === 'knowledge' && (d.tab === 'journals' || d.id || d.period_key))) {
+      if (window.MTApp?.openJournal) window.MTApp.openJournal(d.id || d.period_key);
+      else { showView('knowledge'); }
+      return;
+    }
+    showView(d.view);
+  });
   mt.onV23?.('reminder', (n) => {
     document.querySelector('.reminder-banner')?.remove();
     const el = document.createElement('div'); el.className = 'reminder-banner'; el.setAttribute('role', 'alert');
