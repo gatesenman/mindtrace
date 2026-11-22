@@ -1,8 +1,46 @@
+# dependencies & build output
 node_modules/
 dist/
+out/
+*.asar
+
+# packaged app / installers
+*.exe
+*.msi
+*.dmg
+*.AppImage
+MindTrace-*.zip
+
+# logs
 *.log
+
+# env files and credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+credentials*
+*.pem
+id_rsa
+id_rsa.pub
+
+# local config and user data (Electron userData lives outside the repo;
+# ignore copies that might be dropped in the working tree)
+config.local.json
+*.local.json
+mindtrace.db
+*.sqlite
+*.sqlite3
+userData/
+user-data/
+
+# editors / OS
 .DS_Store
-/tmp/
+Thumbs.db
 .idea/
 .vscode/
-*.asar
+
+# temp and transfer leftovers
+/tmp/
+*.chunk
+/c[0-9][0-9][0-9]
