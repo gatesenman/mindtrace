@@ -26,19 +26,25 @@ function layerOf(row) {
   try { const m = typeof row.meta === 'string' ? JSON.parse(row.meta) : (row.meta || {}); return m.layer || null; } catch (_) { return null; }
 }
 
-function summarizeDay(storeApi, dateStr) {
-  const { day, from, to, key } = dayBounds(dateStr);
-  const acts = storeApi.all(
-    `SELECT id,type,started_at,ended_at,duration_ms,app_name,process_name,window_title,url,file_path,content,meta FROM activities WHERE started_at>=? AND started_at<=? ORDER BY started_at ASC LIMIT 2000`,
-    [from, to]
-  );
-  if (!acts.length) {
-    return {
-      status: 'NO_DATA', period: 'daily', period_key: key,
-      title: `${key} 日报`, markdown: `# ${key} 日报\n\n> NO_DATA：当日没有采集到活动。\n`,
-      stats: { activities: 0 }
-    };
-  }
+function fmtDur(ms, week) {
+  const m = Math.round(ms / 60000);
+  if (week) return m < 60 ? `${m} 分钟` : `${(m / 60).toFixed(1)} 小时`;
+  return m < 60 ? `${m} 分钟` : `${Math.floor(m / 60)} 小时 ${m % 60} 分`;
+}
+
+function workBullets(docs, { limit = 10, snip = 90 } = {}) {
+  const { KIND_CN } = require('../content/docDigest');
+  const { redactText } = require('../privacy/redact');
+  const { clip } = require('../content/sessionSummary');
+  return docs.slice(0, limit).map(d => {
+    const dur = d.ms ? require('../content/docDigest').fmtMin(d.ms).replace(/分钟/, ' 分钟') : '';
+    const line = `- **${d.name}** · ${KIND_CN[d.kind] || d.kind}${dur ? ` · ${dur}` : ''}`;
+    const q = d.snippet ? clip(redactText(d.snippet), snip) : '';
+    return q ? `${line}\n  > ${q}` : line;
+  });
+}
+
+function collect(acts) {
   const byApp = new Map();
   const byLayer = new Map();
   const files = new Map();
@@ -63,46 +69,57 @@ function summarizeDay(storeApi, dateStr) {
   const topFiles = [...files.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
   const topSites = [...sites.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
   const docs = require('../content/docDigest').digest(acts, { limit: 12 });
-  const fmt = (ms) => { const m = Math.round(ms / 60000); return m < 60 ? `${m} 分钟` : `${Math.floor(m / 60)} 小时 ${m % 60} 分`; };
+  return { byApp, byLayer, files, sites, commits, activeMs, topApps, topFiles, topSites, docs };
+}
+
+function summarizeDay(storeApi, dateStr) {
+  const { day, from, to, key } = dayBounds(dateStr);
+  const acts = storeApi.all(
+    `SELECT id,type,started_at,ended_at,duration_ms,app_name,process_name,window_title,url,file_path,content,meta FROM activities WHERE started_at>=? AND started_at<=? ORDER BY started_at ASC LIMIT 2000`,
+    [from, to]
+  );
+  if (!acts.length) {
+    return {
+      status: 'NO_DATA', period: 'daily', period_key: key,
+      title: `${key} 日报`, markdown: `# ${key} 日报\n\n> NO_DATA：当日没有采集到活动。\n`,
+      stats: { activities: 0 }
+    };
+  }
+  const C = collect(acts);
+  const wd = '日一二三四五六'[day.day()];
+  const work = workBullets(C.docs);
   const md = [
     `# ${key} 日报`,
     '',
-    `> 由知迹规则生成 · ${day.format('dddd')} · 活跃约 ${fmt(activeMs)} · ${acts.length} 条记录`,
+    `> 周${wd} · 活跃约 ${fmtDur(C.activeMs)} · ${acts.length} 条`,
     '',
     '## 今天做了什么',
-    ...topApps.map(([k, v]) => `- **${k}** · ${fmt(v)}`),
+    ...(work.length ? work : C.topApps.map(([k, v]) => `- **${k}** · ${fmtDur(v)}`)),
     '',
-    docs.length ? '## 处理的文档与页面' : '',
-    ...require('../content/docDigest').toMarkdown(docs),
+    '## 时间分布',
+    ...C.topApps.map(([k, v]) => `- **${k}** · ${fmtDur(v)}`),
     '',
-    topFiles.length ? '## 反复打开的文件' : '',
-    ...topFiles.map(([k, v]) => `- \`${k}\`（${v} 次）`),
+    C.topSites.length ? '## 常去网站' : '',
+    ...C.topSites.map(([k, v]) => `- ${k}（${v} 次）`),
     '',
-    topSites.length ? '## 常去网站' : '',
-    ...topSites.map(([k, v]) => `- ${k}（${v} 次）`),
-    '',
-    commits.length ? '## 提交线索' : '',
-    ...commits.slice(0, 8).map(c => `- ${c.slice(0, 120)}`),
-    '',
-    '## 信号层分布',
-    ...[...byLayer.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `- ${k}: ${v}`),
-    '',
-    '---',
-    '_可一键复制到飞书/邮件；如已配置 AI，可在设置中开启「AI 润色日报」。_'
-  ].filter(x => x !== undefined).join('\n');
+    C.commits.length ? '## 提交线索' : '',
+    ...C.commits.slice(0, 8).map(c => `- ${c.slice(0, 120)}`),
+    ''
+  ].filter(x => x !== undefined && x !== '').join('\n').replace(/\n{3,}/g, '\n\n') + '\n';
 
+  const lead = C.docs[0]?.name || C.topApps[0]?.[0] || '活动';
   return {
     status: 'OK', period: 'daily', period_key: key,
-    title: `${key} 日报 · ${topApps[0]?.[0] || '活动'}`,
+    title: `${key} 日报 · ${lead}`,
     markdown: md,
-    stats: { activities: acts.length, activeMs, docs: docs.map(d => d.name), topApps, topFiles: topFiles.map(([k]) => k), topSites: topSites.map(([k]) => k) }
+    stats: { activities: acts.length, activeMs: C.activeMs, docs: C.docs.map(d => d.name), topApps: C.topApps, topFiles: C.topFiles.map(([k]) => k), topSites: C.topSites.map(([k]) => k) }
   };
 }
 
 function summarizeWeek(storeApi, dateStr) {
   const { start, end, from, to, key } = weekBounds(dateStr);
   const acts = storeApi.all(
-    `SELECT started_at,duration_ms,app_name,url,file_path,type,meta FROM activities WHERE started_at>=? AND started_at<=? LIMIT 5000`,
+    `SELECT id,started_at,duration_ms,app_name,process_name,window_title,url,file_path,type,content,meta FROM activities WHERE started_at>=? AND started_at<=? LIMIT 5000`,
     [from, to]
   );
   if (!acts.length) {
@@ -113,33 +130,32 @@ function summarizeWeek(storeApi, dateStr) {
     };
   }
   const byDay = new Map();
-  const byApp = new Map();
-  let activeMs = 0;
   for (const a of acts) {
     const d = dayjs(a.started_at).format('YYYY-MM-DD');
     byDay.set(d, (byDay.get(d) || 0) + 1);
-    const dur = Number(a.duration_ms || 0);
-    activeMs += dur;
-    const app = a.app_name || a.type;
-    byApp.set(app, (byApp.get(app) || 0) + dur);
   }
-  const topApps = [...byApp.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-  const docs = require('../content/docDigest').digest(acts, { limit: 12 });
-  const fmt = (ms) => { const m = Math.round(ms / 60000); return m < 60 ? `${m} 分钟` : `${(m / 60).toFixed(1)} 小时`; };
+  const C = collect(acts);
+  const work = workBullets(C.docs, { limit: 12, snip: 80 });
+  const standup = C.docs.length
+    ? C.docs.slice(0, 5).map(d => `  - ${d.name}${d.snippet ? '：' + require('../content/sessionSummary').clip(require('../privacy/redact').redactText(d.snippet), 48) : ''}`)
+    : C.topApps.slice(0, 3).map(([k]) => `  - ${k} 相关工作`);
   const md = [
     `# 周报 · ${start.format('MM/DD')} – ${end.format('MM/DD')}`,
     '',
-    `> 规则生成 · ${acts.length} 条 · 活跃约 ${fmt(activeMs)}`,
+    `> ${acts.length} 条 · 活跃约 ${fmtDur(C.activeMs, true)}`,
     '',
-    '## 每日活跃条数',
+    '## 本周做了什么',
+    ...(work.length ? work : ['- 本周未识别到文档或页面']),
+    '',
+    '## 每日',
     ...[...byDay.entries()].sort().map(([d, n]) => `- ${d}: ${n}`),
     '',
-    '## 时间花在哪',
-    ...topApps.map(([k, v]) => `- **${k}** · ${fmt(v)}`),
+    '## 时间分布',
+    ...C.topApps.map(([k, v]) => `- **${k}** · ${fmtDur(v, true)}`),
     '',
     '## Standup 草稿',
     '- 本周完成：',
-    ...topApps.slice(0, 3).map(([k]) => `  - ${k} 相关工作`),
+    ...standup,
     '- 下周计划：',
     '- 阻碍：',
     ''
@@ -148,7 +164,7 @@ function summarizeWeek(storeApi, dateStr) {
     status: 'OK', period: 'weekly', period_key: key,
     title: `周报 ${start.format('MM/DD')}–${end.format('MM/DD')}`,
     markdown: md,
-    stats: { activities: acts.length, activeMs, days: byDay.size, topApps }
+    stats: { activities: acts.length, activeMs: C.activeMs, days: byDay.size, topApps: C.topApps, docs: C.docs.map(d => d.name) }
   };
 }
 
@@ -158,7 +174,7 @@ function persist(report) {
     period_key: report.period_key,
     title: report.title,
     content: report.markdown,
-    highlights: report.stats?.topApps?.slice(0, 5).map(x => Array.isArray(x) ? x[0] : x) || [],
+    highlights: (report.stats?.docs || []).slice(0, 5).concat((report.stats?.topApps || []).map(x => Array.isArray(x) ? x[0] : x)).filter(Boolean).slice(0, 5),
     stats: { ...report.stats, status: report.status, generatedBy: 'rules-r6' }
   });
   return { ...report, journalId: id };
