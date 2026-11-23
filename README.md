@@ -18,18 +18,29 @@
 
 ---
 
-## 安装（Windows）
+## 下载
 
-产物目录：`dist/`
+当前 GitHub 上**没有**已发布的安装包（无 Release）。README 旧文曾写 `MindTrace-2.1.0-*.exe`，但发行页不存在这些资产，请勿当作可下载链接。`package.json` 版本为 **2.4.9**；打包命令为 `npm run build:win`（产物通常落在本地 `dist/`）。本轮因磁盘空间不足未重新打包、未上传。
 
-| 文件 | 说明 |
-|------|------|
-| `MindTrace-2.1.0-setup.exe` | **NSIS 安装包**（简体中文、可选目录、桌面/开始菜单快捷方式） |
-| `MindTrace-2.1.0-portable.exe` | 便携版，免安装直接运行 |
-| `MindTrace-2.1.0-win-x64.zip` | 绿色解压版 |
-| `MindTrace-2.1.0-source.zip` | 源码包（开发用） |
+请从源码运行，或由维护者在有足够磁盘的环境打包后发布。
 
-若 Windows SmartScreen 提示「未知发布者」，选择「仍要运行」（本地/开源构建未做代码签名属正常）。
+## 界面截图
+
+以下为仓库 `screenshots/` 中已有的真实产品界面（含示例数据演示），不是生成图。
+
+![今日总览](screenshots/05-dashboard.png)
+
+*今日总览 / Today's overview*
+
+![时间线](screenshots/06-timeline.png)
+
+*时间线 / Timeline*
+
+![知识库](screenshots/07-knowledge.png)
+
+*知识库 / Knowledge*
+
+更多见 `screenshots/`（引导页、深色主题、聊天等）。
 
 ### 从源码运行
 
@@ -343,3 +354,26 @@ A: `%APPDATA%/知迹 MindTrace/`。卸载时可选保留用户数据。
 ## 许可证
 
 MIT
+
+---
+
+## English
+
+**MindTrace (知迹) 2.4.9** — a local-first personal digital-asset workbench. Collect (only after you opt in) browser / IDE / docs / downloads / window activity into a timeline, Wiki, and memory store. Not spyware: no keylogging, no default cloud upload.
+
+### Download
+
+There is **no** published installer on GitHub Releases. Older README text mentioning `MindTrace-2.1.0-*.exe` does not correspond to any current release asset. Package with `npm run build:win` when disk allows. This pass did not build or upload packages.
+
+### Screenshots
+
+The images above are existing real UI captures under `screenshots/` (including sample-data demos). They are not generated artwork.
+
+### Run from source
+
+```bash
+npm install
+npm start
+# or
+npm run dev
+```
