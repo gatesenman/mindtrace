@@ -8,27 +8,18 @@ const { isSelfApp } = require('../main/appNames');
 function formatActivities(rows, limit = 80) {
   // 2.3.2：先去噪（任务切换/过短窗口/过短复制/仅窗口名），不浪费 token
   try { rows = require('../core/noise').filter(rows, { hideLow: true }); } catch (_) {}
-  return rows.filter(a => !isSelfApp({ app: a.app_name, process: a.process_name, title: a.window_title }))
-    .slice(0, limit).map(a => {
-    const t = dayjs(a.started_at).format('HH:mm');
-    const dur = a.duration_ms ? `${Math.round(a.duration_ms / 60000)}分钟` : '';
-    let docName = '';
-    try { const o = require('../content/docDigest').objectOf(a); if (o && o.name && o.name !== a.window_title) docName = `对象:${o.name}`; } catch (_) {}
-    const parts = [t, a.type, a.app_name, a.window_title, docName, a.url, a.file_path];
-    if (a.content) parts.push(redactText(String(a.content).slice(0, 200).replace(/\s+/g, ' ')));
-    if (dur) parts.push(dur);
-    return parts.filter(Boolean).join(' | ');
-  }).join('\n');
+  const clean = rows.filter(a => !isSelfApp({ app: a.app_name, process: a.process_name, title: a.window_title }));
+  const ss = require('../content/sessionSummary');
+  const head = ss.promptBlock(clean);
+  const lines = clean.slice(0, limit).map(a => ss.eventLine(a)).join('\n');
+  return head + lines;
 }
 
-/** 2.4.8：先给模型一份"今天处理了哪些文档/页面/会话 + 内容片段"，再给事件抽样 */
+/** 2.4.8 / 2.5：先给模型一份「今天处理了哪些文档/页面/会话 + 内容片段」，再给事件抽样 */
 function docSection(acts) {
   try {
-    const dd = require('../content/docDigest');
     let rows = acts; try { rows = require('../core/noise').filter(acts, { hideLow: false }); } catch (_) {}
-    const list = dd.digest(rows, { limit: 25 });
-    if (!list.length) return '';
-    return '今日处理的文档/页面/会话（按时长）：\n' + redactText(dd.toPrompt(list)) + '\n\n事件明细：\n';
+    return require('../content/sessionSummary').promptBlock(rows);
   } catch (_) { return ''; }
 }
 
