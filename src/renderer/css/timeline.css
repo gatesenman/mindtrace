@@ -162,3 +162,10 @@
 .tlo-ctx { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: var(--fs-xs); color: var(--text-3); }
 .tlo-ctx span { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: var(--bg-sunken); }
 .tlo-ctx b { color: var(--text-2); font-weight: 600; }
+
+/* 2.5 检索结果：摘录 + 跳转 */
+.sr-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; flex-wrap: wrap; }
+.sr-q { font-size: var(--fs-sm); color: var(--text-2); }
+.sr-hit { display: flex; gap: 12px; width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--border); padding: 10px 0; cursor: pointer; color: inherit; font: inherit; }
+.sr-hit:hover { background: var(--bg-elevated); }
+.sr-excerpt { margin-top: 4px; font-size: var(--fs-sm); color: var(--text-3); line-height: 1.45; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }

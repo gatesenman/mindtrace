@@ -712,8 +712,8 @@ function searchFts(q, limit = 50) {
   }
   const terms = toIndexText(q).split(' ').filter(Boolean).slice(0, 8);
   if (!terms.length) return [];
-  const where = terms.map(() => `(a.window_title LIKE ? OR a.content LIKE ? OR a.url LIKE ? OR a.app_name LIKE ?)`).join(' AND ');
-  const params = terms.flatMap(t => Array(4).fill(`%${t}%`));
+  const where = terms.map(() => `(a.window_title LIKE ? OR a.content LIKE ? OR a.url LIKE ? OR a.file_path LIKE ? OR a.app_name LIKE ?)`).join(' AND ');
+  const params = terms.flatMap(t => Array(5).fill(`%${t}%`));
   return all(`SELECT ${cols} FROM activities a WHERE ${where} ORDER BY a.started_at DESC LIMIT ?`, [...params, limit]);
 }
 

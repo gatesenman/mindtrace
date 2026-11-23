@@ -1001,7 +1001,7 @@ function registerIpc() {
   ipcMain.handle('get-rollups', (_e, opts = {}) => store.getRollups(opts.level || 'day', opts.from, opts.to));
   ipcMain.handle('get-wiki', (_e, kind) => store.listWiki(kind));
   ipcMain.handle('get-memories', (_e, kind) => store.listMemories(kind));
-  ipcMain.handle('search-fts', (_e, q) => store.searchFts(q, 50));
+  ipcMain.handle('search-fts', (_e, q, opts = {}) => require('../core/search').search(q, { limit: (opts && opts.limit) || 50, ...opts }));
   ipcMain.handle('get-budget', () => workerHost.getBudget());
   ipcMain.handle('add-quick-note', (_e, payload) => {
     const bus = workerHost.getBus();
