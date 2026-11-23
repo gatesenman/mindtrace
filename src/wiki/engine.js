@@ -80,16 +80,16 @@ async function buildDayRollup(cfg, day) {
       }
       for (const p of (j.people || [])) {
         store.upsertWikiPage({
-          kind: 'person', slug: String(p).slice(0, 40),
-          title: String(p), body_md: `与「${p}」相关的活动见于 ${day}。`,
+          kind: 'person', slug: require('../content/ground').slugify('person', p),
+          title: String(p), body_md: `# ${p}\n\n见于 ${day}。`,
           backlinks: [day]
         });
         store.upsertMemory({ kind: 'person_note', text: `与 ${p} 有互动（${day}）`, confidence: 0.7, evidence: [day] });
       }
       for (const topic of (j.topics || [])) {
         store.upsertWikiPage({
-          kind: 'project', slug: String(topic).slice(0, 40),
-          title: String(topic), body_md: `项目/主题「${topic}」在 ${day} 有进展。`,
+          kind: 'project', slug: require('../content/ground').slugify('proj', topic),
+          title: String(topic), body_md: `# ${topic}\n\n${day} 有进展。`,
           backlinks: [day]
         });
       }
@@ -101,6 +101,7 @@ async function buildDayRollup(cfg, day) {
   }
   store.upsertRollup({ level: 'day', period_key: day, title: `${day} 日卷`, summary_md, stats: { count: acts.length, hours: hours.length } });
   store.upsertWikiPage({ kind: 'time', slug: `day-${day}`, title: day, body_md: summary_md, backlinks: hours.map(h => h.id) });
+  try { require('../content/ground').apply(acts, { day }); } catch (e) { console.error('wiki ground', e.message); }
   return true;
 }
 
