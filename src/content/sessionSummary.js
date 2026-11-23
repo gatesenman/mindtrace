@@ -82,7 +82,9 @@ function promptBlock(rows, { heading } = {}) {
   const list = digest(rows || [], { limit: 25 });
   if (!list.length) return '';
   const title = heading || '今日处理的文档/页面/会话（按时长）：';
-  return title + '\n' + redactText(toPrompt(list)) + '\n\n事件明细：\n';
+  let body = redactText(toPrompt(list));
+  if (body.length > 4000) body = body.slice(0, 4000) + '…';
+  return title + '\n' + body + '\n\n事件明细：\n';
 }
 
 function eventLine(a) {

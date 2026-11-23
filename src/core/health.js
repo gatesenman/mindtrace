@@ -149,6 +149,7 @@ function shortLine(it) {
     case 'mcp': return it.enabled ? `端口 ${it.port}` : '本机 API 未开启';
     case 'context': return it.state === 'error' ? '读取失败' : it.label;
     case 'content': return it.short0;
+    case 'knowledge': return it.short0;
     case 'net': { const m = /外发 (\d+)/.exec(it.detail || ''); return `${it.label} · 外发 ${m ? m[1] : 0}`; }
     default: return it.label;
   }
@@ -163,6 +164,7 @@ function finalize(it) {
 function snapshot(cfg = {}, { mcpInstall } = {}) {
   const items = [
     contentStatus(cfg),
+    require('../content/coverage').coverageStatus(cfg),
     ocrStatus(),
     uiaStatus(),
     hotkeyStatus(cfg),
@@ -183,4 +185,4 @@ function snapshot(cfg = {}, { mcpInstall } = {}) {
   };
 }
 
-module.exports = { contentStatus, snapshot, shortLine, SHORT_MAX, PILL, ocrStatus, uiaStatus, hotkeyStatus, mcpStatus, contextStatus, gateStatus, pretty };
+module.exports = { contentStatus, snapshot, shortLine, SHORT_MAX, PILL, ocrStatus, uiaStatus, hotkeyStatus, mcpStatus, contextStatus, gateStatus, pretty, coverageStatus: (...a) => require('../content/coverage').coverageStatus(...a) };
