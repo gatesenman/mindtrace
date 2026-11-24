@@ -20,7 +20,7 @@
     "test:zhtime": "node tests/zhtime.test.js",
     "test:ai": "node tests/ai-client.js",
     "test:noise": "node tests/noise.js && node tests/timeline-feed.js && electron tests/noise-integration.js --no-sandbox",
-    "test:r24": "node tests/r1.js && node tests/r2.js && node tests/r3.js && node tests/r4.js && node tests/r5.js && node tests/r6.js && node tests/r7.js && node tests/r8.js && node tests/r9.js && node tests/r10.js && node tests/r11.js && node tests/r12.js && node tests/r13.js && node tests/r14.js && node tests/r15.js && node tests/r16.js && node tests/r17.js && node tests/r18.js && node tests/r19.js && node tests/r20.js && node tests/r21.js && node tests/r22.js && electron tests/r2-integration.js --no-sandbox && electron tests/r3-integration.js --no-sandbox && electron tests/r10-integration.js --no-sandbox"
+    "test:r24": "node tests/r1.js && node tests/r2.js && node tests/r3.js && node tests/r4.js && node tests/r5.js && node tests/r6.js && node tests/r7.js && node tests/r8.js && node tests/r9.js && node tests/r10.js && node tests/r11.js && node tests/r12.js && node tests/r13.js && node tests/r14.js && node tests/r15.js && node tests/r16.js && node tests/r17.js && node tests/r18.js && node tests/r19.js && node tests/r20.js && node tests/r21.js && node tests/r22.js && node tests/sqlite-integration.js && electron tests/r2-integration.js --no-sandbox && electron tests/r3-integration.js --no-sandbox && electron tests/r10-integration.js --no-sandbox"
   },
   "build": {
     "appId": "com.mindtrace.app",
