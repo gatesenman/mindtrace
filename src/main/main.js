@@ -1001,7 +1001,7 @@ function registerIpc() {
   ipcMain.handle('get-rollups', (_e, opts = {}) => store.getRollups(opts.level || 'day', opts.from, opts.to));
   ipcMain.handle('get-wiki', (_e, kind) => store.listWiki(kind));
   ipcMain.handle('get-memories', (_e, kind) => store.listMemories(kind));
-  ipcMain.handle('search-fts', (_e, q) => store.searchFts(q, 50));
+  ipcMain.handle('search-fts', (_e, q, opts = {}) => require('../core/search').search(q, { limit: (opts && opts.limit) || 50, ...opts }));
   ipcMain.handle('get-budget', () => workerHost.getBudget());
   ipcMain.handle('add-quick-note', (_e, payload) => {
     const bus = workerHost.getBus();
@@ -1029,7 +1029,7 @@ function registerIpc() {
   // ── v2.2 pro ──
   const safe = fn => async (...a) => { try { return await fn(...a); } catch (e) { return { ok: false, error: e.message }; } };
   ipcMain.handle('pro-audit', (_e, o) => pro.listAudit(o || {}));
-  ipcMain.handle('pro-wipe-range', safe((_e, { from, to }) => { const r = pro.wipeRange(from, to); const c = v23.forget.cascadeRange(from, to); store.persist(true); return { ok: true, ...r, derived: c }; }));
+  ipcMain.handle('pro-wipe-range', safe((_e, { from, to }) => { const r = (v23.forget.wipeRangeCascade || ((a,b) => { const w = pro.wipeRange(a,b); const c = v23.forget.cascadeRange(a,b); return { ok: true, ...w, derived: c }; }))(from, to); try { store.persist(true); } catch (_) {} return r; }));
   registerV23Ipc();
   require('./timelineIpc').register({ store, v23, getConfig: () => config, setConfig: (patch) => {
     const merge = (a, b) => { for (const k of Object.keys(b || {})) { if (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k])) a[k] = merge(a[k] || {}, b[k]); else a[k] = b[k]; } return a; };

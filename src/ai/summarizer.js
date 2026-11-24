@@ -1,38 +1,41 @@
 const dayjs = require('dayjs');
-const store = require('../main/store');
+function defaultStore() { return require('../main/store'); }
 const prompts = require('./prompts');
 const { chatCompletion, parseJsonLoose } = require('./client');
 const { redactText } = require('../privacy/redact');
 const { isSelfApp } = require('../main/appNames');
 
-function formatActivities(rows, limit = 80) {
+const PROMPT_MAX_CHARS = 8000;
+
+function formatActivities(rows, limit = 80, opts = {}) {
   // 2.3.2：先去噪（任务切换/过短窗口/过短复制/仅窗口名），不浪费 token
   try { rows = require('../core/noise').filter(rows, { hideLow: true }); } catch (_) {}
-  return rows.filter(a => !isSelfApp({ app: a.app_name, process: a.process_name, title: a.window_title }))
-    .slice(0, limit).map(a => {
-    const t = dayjs(a.started_at).format('HH:mm');
-    const dur = a.duration_ms ? `${Math.round(a.duration_ms / 60000)}分钟` : '';
-    let docName = '';
-    try { const o = require('../content/docDigest').objectOf(a); if (o && o.name && o.name !== a.window_title) docName = `对象:${o.name}`; } catch (_) {}
-    const parts = [t, a.type, a.app_name, a.window_title, docName, a.url, a.file_path];
-    if (a.content) parts.push(redactText(String(a.content).slice(0, 200).replace(/\s+/g, ' ')));
-    if (dur) parts.push(dur);
-    return parts.filter(Boolean).join(' | ');
-  }).join('\n');
+  const clean = rows.filter(a => !isSelfApp({ app: a.app_name, process: a.process_name, title: a.window_title }));
+  const ss = require('../content/sessionSummary');
+  const head = ss.promptBlock(clean);
+  const maxChars = opts.maxChars != null ? opts.maxChars : PROMPT_MAX_CHARS;
+  const budget = Math.max(0, maxChars - head.length);
+  const lines = [];
+  let used = 0;
+  for (const a of clean.slice(0, limit)) {
+    const line = ss.eventLine(a);
+    if (used + line.length + 1 > budget && lines.length) break;
+    lines.push(line);
+    used += line.length + 1;
+  }
+  return (head + lines.join('\n')).slice(0, maxChars);
 }
 
-/** 2.4.8：先给模型一份"今天处理了哪些文档/页面/会话 + 内容片段"，再给事件抽样 */
+/** 2.4.8 / 2.5：先给模型一份「今天处理了哪些文档/页面/会话 + 内容片段」，再给事件抽样 */
 function docSection(acts) {
   try {
-    const dd = require('../content/docDigest');
     let rows = acts; try { rows = require('../core/noise').filter(acts, { hideLow: false }); } catch (_) {}
-    const list = dd.digest(rows, { limit: 25 });
-    if (!list.length) return '';
-    return '今日处理的文档/页面/会话（按时长）：\n' + redactText(dd.toPrompt(list)) + '\n\n事件明细：\n';
+    return require('../content/sessionSummary').promptBlock(rows);
   } catch (_) { return ''; }
 }
 
 async function buildDailyJournal(cfg, dateStr) {
+  const store = defaultStore();
   const day = dayjs(dateStr || undefined);
   const from = day.startOf('day').valueOf();
   const to = day.endOf('day').valueOf();
@@ -87,6 +90,7 @@ async function buildDailyJournal(cfg, dateStr) {
 }
 
 async function extractCardsFromRecent(cfg, hours = 6) {
+  const store = defaultStore();
   const from = Date.now() - hours * 3600 * 1000;
   const acts = store.all(`SELECT * FROM activities WHERE started_at>=? ORDER BY started_at DESC LIMIT 150`, [from]);
   if (!acts.length) return [];
@@ -111,6 +115,7 @@ async function extractCardsFromRecent(cfg, hours = 6) {
 }
 
 async function askHistory(cfg, question) {
+  const store = defaultStore();
   const q = question.trim();
   const acts = store.searchActivities({ q, limit: 40 });
   const cards = store.all(
@@ -181,11 +186,30 @@ async function askHistory(cfg, question) {
   return { answer, citations: used };
 }
 
+function buildClusterPayload(cards, acts, { max = 12000 } = {}) {
+  const { redactText } = require('../privacy/redact');
+  const { redactUrl } = require('../content/sessionSummary');
+  const cleanCards = (cards || []).map(c => ({
+    id: c.id, title: redactText(String(c.title || '')), kind: c.kind,
+    summary: redactText(String(c.summary || '')).slice(0, 200),
+    tags: c.tags || []
+  }));
+  const cleanActs = (acts || []).map(a => ({
+    app_name: a.app_name, process_name: a.process_name, type: a.type,
+    window_title: a.window_title,
+    content: a.content ? redactText(String(a.content).slice(0, 160)) : '',
+    started_at: a.started_at, ended_at: a.ended_at, duration_ms: a.duration_ms,
+    url: a.url ? redactUrl(a.url) : undefined
+  }));
+  return JSON.stringify({ cards: cleanCards, activities: cleanActs }, null, 0).slice(0, max);
+}
+
 async function clusterTopics(cfg) {
+  const store = defaultStore();
   const cards = store.all(`SELECT id, title, kind, summary, tags FROM knowledge_cards ORDER BY updated_at DESC LIMIT 80`);
-  const acts = require('../core/noise').filter(store.all(`SELECT app_name, process_name, window_title, type, content, started_at, ended_at, duration_ms FROM activities ORDER BY started_at DESC LIMIT 240`)).slice(0, 80);
+  const acts = require('../core/noise').filter(store.all(`SELECT app_name, process_name, window_title, type, content, started_at, ended_at, duration_ms, url FROM activities ORDER BY started_at DESC LIMIT 240`)).slice(0, 80);
   if (!cards.length && !acts.length) return [];
-  const payload = JSON.stringify({ cards, activities: acts }, null, 0).slice(0, 12000);
+  const payload = buildClusterPayload(cards, acts, { max: 12000 });
   const { content } = await chatCompletion(cfg, [
     { role: 'system', content: prompts.systemKnowledge },
     { role: 'user', content: prompts.clusterTopics(payload) }
@@ -216,4 +240,4 @@ async function maybeAutoSummarize(cfg) {
   }
 }
 
-module.exports = { docSection, buildDailyJournal, extractCardsFromRecent, askHistory, clusterTopics, maybeAutoSummarize, formatActivities };
+module.exports = { docSection, buildDailyJournal, extractCardsFromRecent, askHistory, clusterTopics, maybeAutoSummarize, formatActivities, buildClusterPayload, PROMPT_MAX_CHARS };

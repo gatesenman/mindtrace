@@ -696,7 +696,7 @@ function indexActivityFts(row) {
 /** 全文检索：FTS(bigram) 命中 → 回表取原文；无 FTS 时退化为 bigram LIKE */
 function searchFts(q, limit = 50) {
   if (!q || !String(q).trim()) return [];
-  const cols = `a.id, a.window_title AS title, a.content, a.url, a.file_path AS path, a.app_name AS app, a.type, a.started_at`;
+  const cols = `a.id, a.window_title AS title, a.window_title, a.content, a.url, a.file_path AS path, a.file_path, a.app_name AS app, a.app_name, a.process_name, a.type, a.started_at, a.meta`;
   if (ftsMode !== 'none') {
     const mq = toMatchQuery(q);
     if (mq) {
@@ -712,8 +712,8 @@ function searchFts(q, limit = 50) {
   }
   const terms = toIndexText(q).split(' ').filter(Boolean).slice(0, 8);
   if (!terms.length) return [];
-  const where = terms.map(() => `(a.window_title LIKE ? OR a.content LIKE ? OR a.url LIKE ? OR a.app_name LIKE ?)`).join(' AND ');
-  const params = terms.flatMap(t => Array(4).fill(`%${t}%`));
+  const where = terms.map(() => `(a.window_title LIKE ? OR a.content LIKE ? OR a.url LIKE ? OR a.file_path LIKE ? OR a.app_name LIKE ?)`).join(' AND ');
+  const params = terms.flatMap(t => Array(5).fill(`%${t}%`));
   return all(`SELECT ${cols} FROM activities a WHERE ${where} ORDER BY a.started_at DESC LIMIT ?`, [...params, limit]);
 }
 

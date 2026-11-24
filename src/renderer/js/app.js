@@ -407,14 +407,21 @@ async function loadTimeline(opts = {}) {
   let from = opts.from || (Date.now() - 7 * 86400000);
   let to = opts.to || Date.now();
   if (opts.day) {
-    from = new Date(opts.day + 'T00:00:00').getTime();
-    to = new Date(opts.day + 'T23:59:59').getTime();
+    // Civil day in Asia/Shanghai, not the host timezone (naive ISO parse would use the OS TZ).
+    const fromSh = Date.parse(opts.day + 'T00:00:00+08:00');
+    const toSh = Date.parse(opts.day + 'T23:59:59.999+08:00');
+    if (Number.isFinite(fromSh) && Number.isFinite(toSh)) { from = fromSh; to = toSh; }
+    else {
+      from = new Date(opts.day + 'T00:00:00').getTime();
+      to = new Date(opts.day + 'T23:59:59').getTime();
+    }
   }
   const hideLow = $('tl-hide-low') ? $('tl-hide-low').checked : true;
   const items = await window.mindtrace.getTimeline({ q, type, from, to, limit: opts.limit || 200, hideLow });
   if (opts.focusId && !items.find(x => x.id === opts.focusId)) {
     const r = await window.mindtrace.getById('activity', opts.focusId);
-    if (r.ok && r.item) items.unshift(r.item);
+    if (r && r.ok && r.item) items.unshift(r.item);
+    else if (typeof toast === 'function') toast('这条活动已删除或不在当前时间范围，无法跳转');
   }
   if (window.TLFeed) { window.TLFeed.render(items, opts); highlightId = null; return; }
   $('timeline-list').innerHTML = items.map(a => {
@@ -893,16 +900,45 @@ function bind() {
   $('win-max')?.addEventListener('click', () => window.mindtrace.windowMaximize?.());
   $('win-close')?.addEventListener('click', () => window.mindtrace.windowClose?.());
 
-  const runFts = async (q) => {
-    const hits = await window.mindtrace.searchFts(q);
+  const SEARCH_KINDS = [['', '全部'], ['file', '文档'], ['page', '网页'], ['chat', '会话'], ['code', '代码']];
+  const jumpToHit = (h) => {
+    const id = h.jump?.activityId || h.id;
+    const ts = h.jump?.started_at || h.started_at;
+    const day = ts ? new Date(ts).toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' }) : '';
+    showView('timeline');
+    timelineZoom = 'day';
+    document.querySelectorAll('#tl-zoom .chip').forEach(c => c.classList.toggle('active', c.dataset.zoom === 'day'));
+    if ($('tl-q')) $('tl-q').value = '';
+    loadTimeline({ forceDay: true, day: day || undefined, focusId: id, q: '', from: day ? undefined : (ts ? ts - 86400000 : 0), to: day ? undefined : (ts ? ts + 86400000 : undefined), limit: 400 });
+  };
+  const renderSearchHits = (res, q, kind) => {
+    const acts = Array.isArray(res) ? res : (res.activities || []);
+    const chips = SEARCH_KINDS.map(([k, l]) => `<button type="button" class="chip${k === (kind || '') ? ' active' : ''}" data-skind="${k}">${l}</button>`).join('');
+    const rows = acts.map(h => {
+      const when = h.started_at ? new Date(h.started_at).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' }) : '';
+      const ex = h.excerpt || (h.content || '').replace(/\s+/g, ' ').slice(0, 140);
+      const path = h.path || h.file_path || h.url || '';
+      return `<button type="button" class="tl-item sr-hit" data-type="${escapeHtml(h.type || '')}" data-id="${escapeHtml(h.id || '')}">
+        <div class="time"><div class="tag">${escapeHtml(h.kindLabel || typeLabel(h.type) || '')}</div><div class="tiny muted">${escapeHtml(when)}</div></div>
+        <div class="tl-card"><div><b>${escapeHtml(h.app || '')}</b> ${escapeHtml(h.title || '')}</div>
+        ${ex ? `<div class="sr-excerpt">${escapeHtml(ex)}</div>` : ''}
+        ${path ? `<div class="meta">${escapeHtml(path)}</div>` : ''}</div>
+      </button>`;
+    }).join('');
+    $('timeline-list').innerHTML = `<div class="sr-bar"><span class="sr-q">「${escapeHtml(q)}」 ${acts.length} 条</span><div class="chips">${chips}</div></div>` +
+      (rows || emptyState('无全文结果', '换个关键词或筛选试试'));
+    $('timeline-list').querySelectorAll('.sr-hit').forEach((el, i) => { el.onclick = () => jumpToHit(acts[i]); });
+    $('timeline-list').querySelectorAll('[data-skind]').forEach(ch => {
+      ch.onclick = (e) => { e.preventDefault(); runFts(q, { kind: ch.dataset.skind || undefined }); };
+    });
+  };
+  const runFts = async (q, opts = {}) => {
+    const res = await window.mindtrace.searchFts(q, opts);
     showView('timeline');
     timelineZoom = 'day';
     document.querySelectorAll('#tl-zoom .chip').forEach(c => c.classList.toggle('active', c.dataset.zoom === 'day'));
     if ($('tl-q')) $('tl-q').value = q;
-    $('timeline-list').innerHTML = hits.map(h => `
-      <div class="tl-item" data-type="${escapeHtml(h.type||'')}"><div class="time"><div class="tag">${escapeHtml(typeLabel(h.type)||'')}</div></div>
-      <div class="tl-card"><div><b>${escapeHtml(h.app||'')}</b> ${escapeHtml(h.title||'')}</div>
-      <div class="meta">${escapeHtml((h.content||'').slice(0,120))}</div></div></div>`).join('') || emptyState('无全文结果', '换个关键词试试');
+    renderSearchHits(res, q, opts.kind || '');
   };
   let cmdState = { items: [], active: 0 };
   let wikiCache = null, topicCache = null;

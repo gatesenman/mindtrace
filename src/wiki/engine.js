@@ -14,10 +14,10 @@ function weekKey(ts) {
 function monthKey(ts) { return dayjs(ts).format('YYYY-MM'); }
 
 function formatActs(rows, limit = 60) {
-  return rows.slice(0, limit).map(a => {
-    const t = dayjs(a.started_at).format('HH:mm');
-    return `${t} [${a.type}] ${a.app_name || ''} ${a.window_title || ''} ${(a.content || '').slice(0, 80).replace(/\s+/g, ' ')}`;
-  }).join('\n');
+  const ss = require('../content/sessionSummary');
+  const head = ss.promptBlock(rows, { heading: '本时段处理的文档/页面/会话：' });
+  const lines = rows.slice(0, limit).map(a => ss.eventLine(a)).join('\n');
+  return head + lines;
 }
 
 async function buildHourRollup(cfg, hourPeriodKey) {
@@ -40,10 +40,10 @@ async function buildHourRollup(cfg, hourPeriodKey) {
         ? `## ${parsed.headline || hourPeriodKey}\n\n${(parsed.bullets || []).map(b => `- ${b}`).join('\n')}`
         : content;
     } catch (e) {
-      summary = `## ${hourPeriodKey}\n\n（规则摘要）共 ${acts.length} 条事件。\n` + formatActs(acts, 20);
+      summary = require('../content/sessionSummary').hourMarkdown(acts, hourPeriodKey);
     }
   } else {
-    summary = `## ${hourPeriodKey}\n\n共 ${acts.length} 条事件。\n\n` + formatActs(acts, 25);
+    summary = require('../content/sessionSummary').hourMarkdown(acts, `${d} ${String(h).padStart(2, '0')}:00`);
   }
   const id = store.upsertRollup({
     level: 'hour', period_key: hourPeriodKey,
@@ -80,27 +80,28 @@ async function buildDayRollup(cfg, day) {
       }
       for (const p of (j.people || [])) {
         store.upsertWikiPage({
-          kind: 'person', slug: String(p).slice(0, 40),
-          title: String(p), body_md: `与「${p}」相关的活动见于 ${day}。`,
+          kind: 'person', slug: require('../content/ground').slugify('person', p),
+          title: String(p), body_md: `# ${p}\n\n见于 ${day}。`,
           backlinks: [day]
         });
         store.upsertMemory({ kind: 'person_note', text: `与 ${p} 有互动（${day}）`, confidence: 0.7, evidence: [day] });
       }
       for (const topic of (j.topics || [])) {
         store.upsertWikiPage({
-          kind: 'project', slug: String(topic).slice(0, 40),
-          title: String(topic), body_md: `项目/主题「${topic}」在 ${day} 有进展。`,
+          kind: 'project', slug: require('../content/ground').slugify('proj', topic),
+          title: String(topic), body_md: `# ${topic}\n\n${day} 有进展。`,
           backlinks: [day]
         });
       }
     } catch (e) {
-      summary_md = `# ${day}\n\n共 ${acts.length} 条事件。小时卷 ${hours.length} 篇。\n`;
+      summary_md = require('../content/sessionSummary').dayMarkdown(acts, day);
     }
   } else {
-    summary_md = `# ${day}\n\n共 ${acts.length} 条事件。\n\n` + formatActs(acts, 40);
+    summary_md = require('../content/sessionSummary').dayMarkdown(acts, day);
   }
   store.upsertRollup({ level: 'day', period_key: day, title: `${day} 日卷`, summary_md, stats: { count: acts.length, hours: hours.length } });
   store.upsertWikiPage({ kind: 'time', slug: `day-${day}`, title: day, body_md: summary_md, backlinks: hours.map(h => h.id) });
+  try { require('../content/ground').apply(acts, { day }); } catch (e) { console.error('wiki ground', e.message); }
   return true;
 }
 

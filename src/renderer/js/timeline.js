@@ -130,15 +130,36 @@
       else if (d.kind === 'browser' && d.cloud) files.push(d.name);
     }
     for (const p of b.paths) if (!/\.(png|jpe?g|lnk)$/i.test(p)) files.push(base(p));
-    b.snippet = '';
-    for (const i of b.items) { if (i.type === 'clipboard' || i.type === 'ide' || i.type === 'download' || !i.content) continue; const c = String(i.content).replace(/\s+/g, ' ').trim(); if (c.length >= 12) { b.snippet = c.slice(0, 140); break; } }
+    const sn = bestContent(b.items);
+    b.snippet = sn.snippet; b.line = sn.line;
     b.files = [...new Set(files)]; b.projects = [...new Set(projects)]; b.people = [...new Set(people)];
+    b.pages = b.cat === 'web' ? b.titles.filter(t => t && !GENERIC.test(t)) : [];
+    const topicSet = [];
+    for (const x of [...b.files, ...b.pages, ...b.projects]) if (x && !topicSet.includes(x)) topicSet.push(x);
+    b.topics = topicSet;
     b.kind = b.lone ? 'ide' : b.cat; // 兼容旧选择器
     b.demo = b.items.some(isDemo);
     b.low = b.items.every(i => i._low);
     b.summary = summarize(b);
   }
   const list3 = (arr, n = 2, unit = '个') => arr.length ? arr.slice(0, n).join('、') + (arr.length > n ? ` 等 ${arr.length} ${unit}` : '') : '';
+  function bestContent(items) {
+    let best = '', bestScore = -1;
+    for (const i of items) {
+      if (!i.content) continue;
+      if (i.type === 'clipboard' || i.type === 'ide' || i.type === 'download') continue;
+      const c = String(i.content).replace(/\s+/g, ' ').trim();
+      if (c.length < 12) continue;
+      let sc = c.length;
+      if (i.file_path || i.url) sc += 80;
+      const d = meta(i.meta).doc; if (d && (d.name || d.page)) sc += 40;
+      if (sc > bestScore) { bestScore = sc; best = c; }
+    }
+    const snippet = best.slice(0, 140);
+    const line = (snippet.split(/[。！？!?\n]/)[0] || snippet).trim().slice(0, 80);
+    return { snippet, line };
+  }
+
 
   /* ── 规则标题（AI 可覆盖）：说清"在做什么、对象是什么" ── */
   function summarize(b) {
@@ -202,12 +223,15 @@
     document.querySelectorAll('[data-ik]').forEach(el => { const s = iconCache[el.dataset.ik]; if (s && !el.querySelector('img')) el.innerHTML = `<img src="${s}" alt="" />`; });
   }
   const objChip = (ic, label, attr = '', title = '') => `<${attr ? 'a' : 'span'} class="tlf-obj${attr ? ' tlf-link' : ''}" ${attr} title="${esc(title || label)}">${svg(ic, 12)}<span>${esc(label)}</span></${attr ? 'a' : 'span'}>`;
-  function objects(b, max = 3) {
+  function objects(b, max = 4) {
     const out = [];
-    for (const p of b.projects.slice(0, 1)) out.push(objChip(I.proj, p));
-    for (const f of b.files.slice(0, 3)) { const p = b.paths.find(x => base(x) === f); out.push(objChip(I.file, f, p ? `data-path="${esc(p)}"` : '', p || f)); }
-    for (const h of b.hosts.slice(0, 3)) { const u = b.urls.find(x => host(x) === h); out.push(objChip(I.web, siteName(h), `data-url="${esc(u)}"`, u)); }
-    for (const p of b.people.slice(0, 3)) out.push(objChip(I.user, p));
+    const seen = new Set();
+    const add = (html, key) => { if (!key || seen.has(key)) return; seen.add(key); out.push(html); };
+    for (const p of b.projects.slice(0, 1)) add(objChip(I.proj, p), 'p:' + p);
+    for (const f of b.files.slice(0, 3)) { const p = b.paths.find(x => base(x) === f); add(objChip(I.file, f, p ? `data-path="${esc(p)}"` : '', p || f), 'f:' + f); }
+    for (const t of (b.pages || []).slice(0, 3)) add(objChip(I.web, t, b.urls[0] ? `data-url="${esc(b.urls[0])}"` : '', t), 't:' + t);
+    for (const h of b.hosts.slice(0, 3)) { const u = b.urls.find(x => host(x) === h); add(objChip(I.web, siteName(h), `data-url="${esc(u)}"`, u), 'h:' + h); }
+    for (const p of b.people.slice(0, 3)) add(objChip(I.user, p), 'u:' + p);
     const extra = out.length - max;
     return out.slice(0, max).join('') + (extra > 0 ? `<span class="tlf-obj more">+${extra}</span>` : '');
   }
@@ -234,7 +258,7 @@
       <div class="tlf-main">
         <div class="tlf-l1"><span class="tlf-sum${aiCache[b.id] ? ' ai' : ''}" title="${esc(sum)}">${esc(sum)}</span>${b.demo ? '<span class="demo-tag">示例</span>' : ''}${b.dur >= 60000 && !b.lone ? `<span class="tlf-dur">${fmtShort(b.dur)}</span>` : ''}</div>
         <div class="tlf-l2">${iconHtml(b, 'tlf-ico sm')}<span class="tlf-app">${esc(appsLine)}</span><span class="tlf-layer l-${b.layer || 'focus'}">${LAYER_NAME[b.layer] || LAYER_NAME.focus}</span><span class="tlf-cat">${CATS[b.cat]}</span>${b.lone ? '' : objects(b)}</div>
-        ${b.snippet && !b.lone ? `<div class="tlf-snip" title="${esc(b.snippet)}">${esc(b.snippet)}${b.snippet.length >= 140 ? '…' : ''}</div>` : ''}
+        ${(b.line || b.snippet) && !b.lone ? `<div class="tlf-snip" title="${esc(b.snippet || b.line)}">${esc(b.line || b.snippet)}${(b.line || b.snippet).length >= 80 ? '…' : ''}</div>` : ''}
         ${b.lone ? ideHtml(b.items[0]) : ''}
       </div>
       <div class="tlf-actions" role="toolbar" aria-label="操作">
@@ -382,5 +406,5 @@
     }
     return blocks;
   }
-  window.TLFeed = { render, toBlocks, summarize, cleanTitle, overview, jumpToHour, closeDetail, layerOf, annotateLayers, LAYER_NAME };
+  window.TLFeed = { render, toBlocks, summarize, cleanTitle, overview, jumpToHour, closeDetail, layerOf, annotateLayers, LAYER_NAME, objects, bestContent };
 })();

@@ -52,7 +52,7 @@ contextBridge.exposeInMainWorld('mindtrace', {
   getRollups: (opts) => ipcRenderer.invoke('get-rollups', opts),
   getWiki: (kind) => ipcRenderer.invoke('get-wiki', kind),
   getMemories: (kind) => ipcRenderer.invoke('get-memories', kind),
-  searchFts: (q) => ipcRenderer.invoke('search-fts', q),
+  searchFts: (q, opts) => ipcRenderer.invoke('search-fts', q, opts || {}),
   getBudget: () => ipcRenderer.invoke('get-budget'),
   addQuickNote: (p) => ipcRenderer.invoke('add-quick-note', p),
   buildRollup: (opts) => ipcRenderer.invoke('build-rollup', opts),

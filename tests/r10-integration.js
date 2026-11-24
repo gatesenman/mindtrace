@@ -41,7 +41,7 @@ app.whenReady().then(async () => {
   const e = rows.find(r => r.process_name === 'msedge');
   t('Edge：页面名', JSON.parse(e.meta).doc.page === 'DeepSeek API 文档');
   const rep = require('../src/core/reports').summarizeDay(store);
-  t('日报含「处理的文档与页面」', /## 处理的文档与页面/.test(rep.markdown) && /2\.4\.8 发布计划\.md/.test(rep.markdown), rep.markdown.split('\n').slice(0, 14).join(' / '));
+  t('日报含文档名与正文', /## 今天做了什么/.test(rep.markdown) && /2\.4\.8 发布计划\.md/.test(rep.markdown), rep.markdown.split('\n').slice(0, 16).join(' / '));
   const S = require('../src/ai/summarizer');
   const sec = S.docSection(store.all(`SELECT * FROM activities`));
   t('AI 日记提示词含文档清单与内容', /今日处理的文档/.test(sec) && /内容：/.test(sec), sec.slice(0, 120));

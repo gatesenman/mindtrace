@@ -95,7 +95,7 @@ async function fetchPageSnippet(url, { cfg = {}, fetchImpl, maxBytes = MAX_BYTES
       redirect: 'follow',
       signal: ctrl?.signal,
       headers: {
-        'User-Agent': 'MindTrace/2.4.9 (local knowledge; +https://localhost)',
+        'User-Agent': 'MindTrace/2.5.0 (local knowledge; +https://localhost)',
         'Accept': 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.5'
       }

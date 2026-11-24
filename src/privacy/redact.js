@@ -5,10 +5,27 @@
  * https://learn.microsoft.com/en-us/windows/client-management/recall-sensitive-information-filtering
  * 本机规则匹配（无 NPU / MCE），命中则脱敏或整条丢弃。
  */
+function redactUrl(u) {
+  const raw = String(u || '');
+  if (!raw) return '';
+  try {
+    const x = new URL(raw);
+    let changed = false;
+    for (const k of [...x.searchParams.keys()]) {
+      if (/(token|secret|password|passwd|apikey|api_key|access_key|auth|signature|sign|sid|session|jwt)/i.test(k)) {
+        x.searchParams.set(k, 'REDACTED');
+        changed = true;
+      }
+    }
+    return changed ? x.toString() : raw;
+  } catch (_) { return raw; }
+}
+
 function redactText(text, opts = {}) {
   if (!text || typeof text !== 'string') return text;
   if (opts.autoRedact === false) return text;
   let t = text;
+  t = t.replace(/https?:\/\/[^\s)<>\]]+/g, (u) => redactUrl(u));
   // China ID
   t = t.replace(/\b\d{17}[\dXx]\b/g, '[敏感-证件号]');
   // Passport-ish
@@ -24,6 +41,8 @@ function redactText(text, opts = {}) {
   t = t.replace(/\bsk-[A-Za-z0-9]{16,}\b/g, '[敏感-Key]');
   t = t.replace(/\bAKIA[0-9A-Z]{16}\b/g, '[敏感-Key]');
   t = t.replace(/\bghp_[A-Za-z0-9]{20,}\b/g, '[敏感-Key]');
+  t = t.replace(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/g, '[敏感-Key]');
+  t = t.replace(/\bglpat-[A-Za-z0-9_\-]{20,}\b/g, '[敏感-Key]');
   t = t.replace(/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, '[敏感-Key]');
   // SMS codes
   t = t.replace(/(验证码\s*[:：是为]?\s*)(\d{4,8})/g, '$1[敏感]');
@@ -60,7 +79,7 @@ function detectSensitive(text, { title = '', url = '', app = '' } = {}) {
     }
   }
   if (/(?<![0-9])1[3-9]\d{9}(?![0-9])/.test(s)) hits.push('phone');
-  if (/\bsk-[A-Za-z0-9]{16,}\b|\bAKIA[0-9A-Z]{16}\b|\bghp_[A-Za-z0-9]{20,}\b/.test(s)) hits.push('api-key');
+  if (/\bsk-[A-Za-z0-9]{16,}\b|\bAKIA[0-9A-Z]{16}\b|\bghp_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{20,}\b/.test(s)) hits.push('api-key');
   if (/验证码\s*[:：是为]?\s*\d{4,8}/.test(s)) hits.push('otp');
   if (looksLikePassword(s, title)) hits.push('password');
   if (/(1password|bitwarden|keepass|网银|网上银行|alipay.*登录)/i.test(hay)) hits.push('sensitive-app');
@@ -80,4 +99,4 @@ function shouldDropCapture(row, cfg = {}) {
   return { drop: hard.length > 0, hits: hard };
 }
 
-module.exports = { redactText, looksLikePassword, detectSensitive, shouldDropCapture };
+module.exports = { redactText, redactUrl, looksLikePassword, detectSensitive, shouldDropCapture };
