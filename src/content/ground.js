@@ -175,13 +175,21 @@ function apply(rows, { day, store: st } = {}) {
   const { pages, memories, docs } = build(rows, { day });
   const store = st || require('../main/store');
   const pageIds = [];
-  for (const p of pages) {
-    let body = p.body_md;
+  for (const raw of pages) {
+    let page = raw;
+    let body = page.body_md;
     try {
-      const ex = store.get && store.get(`SELECT body_md FROM wiki_pages WHERE kind=? AND slug=?`, [p.kind, p.slug]);
-      if (ex && ex.body_md) body = mergeBody(ex.body_md, p.body_md);
-    } catch (_) {}
-    if (typeof store.upsertWikiPage === 'function') pageIds.push(store.upsertWikiPage({ ...p, body_md: body }));
+      const slugs = require('../wiki/slugs');
+      const resolved = slugs.resolveForUpsert(store, { ...page, body_md: body });
+      body = resolved.body_md;
+      page = { ...page, slug: resolved.slug, id: resolved.id || page.id };
+    } catch (_) {
+      try {
+        const ex = store.get && store.get(`SELECT body_md FROM wiki_pages WHERE kind=? AND slug=?`, [page.kind, page.slug]);
+        if (ex && ex.body_md) body = mergeBody(ex.body_md, page.body_md);
+      } catch (e) {}
+    }
+    if (typeof store.upsertWikiPage === 'function') pageIds.push(store.upsertWikiPage({ ...page, body_md: body }));
   }
   const memIds = [];
   for (const m of memories) {
