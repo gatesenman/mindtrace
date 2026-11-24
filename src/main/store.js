@@ -696,7 +696,7 @@ function indexActivityFts(row) {
 /** 全文检索：FTS(bigram) 命中 → 回表取原文；无 FTS 时退化为 bigram LIKE */
 function searchFts(q, limit = 50) {
   if (!q || !String(q).trim()) return [];
-  const cols = `a.id, a.window_title AS title, a.content, a.url, a.file_path AS path, a.app_name AS app, a.type, a.started_at`;
+  const cols = `a.id, a.window_title AS title, a.window_title, a.content, a.url, a.file_path AS path, a.file_path, a.app_name AS app, a.app_name, a.process_name, a.type, a.started_at, a.meta`;
   if (ftsMode !== 'none') {
     const mq = toMatchQuery(q);
     if (mq) {

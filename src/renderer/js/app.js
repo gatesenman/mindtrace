@@ -407,14 +407,21 @@ async function loadTimeline(opts = {}) {
   let from = opts.from || (Date.now() - 7 * 86400000);
   let to = opts.to || Date.now();
   if (opts.day) {
-    from = new Date(opts.day + 'T00:00:00').getTime();
-    to = new Date(opts.day + 'T23:59:59').getTime();
+    // Civil day in Asia/Shanghai, not the host timezone (naive ISO parse would use the OS TZ).
+    const fromSh = Date.parse(opts.day + 'T00:00:00+08:00');
+    const toSh = Date.parse(opts.day + 'T23:59:59.999+08:00');
+    if (Number.isFinite(fromSh) && Number.isFinite(toSh)) { from = fromSh; to = toSh; }
+    else {
+      from = new Date(opts.day + 'T00:00:00').getTime();
+      to = new Date(opts.day + 'T23:59:59').getTime();
+    }
   }
   const hideLow = $('tl-hide-low') ? $('tl-hide-low').checked : true;
   const items = await window.mindtrace.getTimeline({ q, type, from, to, limit: opts.limit || 200, hideLow });
   if (opts.focusId && !items.find(x => x.id === opts.focusId)) {
     const r = await window.mindtrace.getById('activity', opts.focusId);
-    if (r.ok && r.item) items.unshift(r.item);
+    if (r && r.ok && r.item) items.unshift(r.item);
+    else if (typeof toast === 'function') toast('这条活动已删除或不在当前时间范围，无法跳转');
   }
   if (window.TLFeed) { window.TLFeed.render(items, opts); highlightId = null; return; }
   $('timeline-list').innerHTML = items.map(a => {

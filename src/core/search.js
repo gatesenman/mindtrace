@@ -2,9 +2,12 @@
  * 2.5 R4 · 统一检索：全文（文档正文 / 网页 / URL / 路径）+ 本地语义混合，带摘录与跳转。
  */
 const semantic = require('../recall/semantic');
+const { inRange } = require('../common/timerange');
 
 const EXCERPT_MAX = 140;
 const KIND_CN = { file: '文档', page: '网页', chat: '会话', code: '代码', activity: '活动' };
+const CHAT_APP = /微信|wechat|企业微信|wxwork|飞书|feishu|lark|钉钉|dingtalk|slack|telegram|teams/i;
+const CODE_APP = /visual studio code|\bvs ?code\b|^code$|code\.exe|cursor|jetbrains|idea64|webstorm|pycharm|goland|phpstorm|clion|rider|android studio|trae|windsurf/i;
 
 function excerpt(text, query, { max = EXCERPT_MAX, around = 36 } = {}) {
   const s = String(text || '').replace(/\s+/g, ' ').trim();
@@ -35,8 +38,11 @@ function kindOf(row) {
   const path = row.path || row.file_path;
   const meta = parseMeta(row.meta);
   const doc = meta.doc || {};
-  if (row.type === 'ide' || doc.kind === 'code') return 'code';
-  if (doc.kind === 'chat' || (row.type === 'uia' && /微信|wechat|飞书|钉钉/i.test(row.app || row.app_name || ''))) return 'chat';
+  const app = row.app || row.app_name || '';
+  const proc = row.process_name || '';
+  const title = row.title || row.window_title || '';
+  if (row.type === 'ide' || doc.kind === 'code' || CODE_APP.test(app) || CODE_APP.test(proc)) return 'code';
+  if (doc.kind === 'chat' || CHAT_APP.test(app) || (row.type === 'uia' && CHAT_APP.test(title))) return 'chat';
   if (row.url || row.type === 'browser' || doc.kind === 'browser') return 'page';
   if (path && row.type !== 'screenshot') return 'file';
   if (doc.kind && doc.kind !== 'explorer') return 'file';
@@ -53,18 +59,12 @@ function decorate(row, q) {
   return {
     ...row,
     title, path,
+    app: row.app || row.app_name || '',
     excerpt: ex,
     kind,
     kindLabel: KIND_CN[kind] || kind,
     jump: { activityId: row.id, started_at: row.started_at || null }
   };
-}
-
-function inRange(row, from, to) {
-  const ts = Number(row.started_at || 0);
-  if (from && ts && ts < from) return false;
-  if (to && ts && ts > to) return false;
-  return true;
 }
 
 function search(q, opts = {}) {
@@ -94,7 +94,7 @@ function search(q, opts = {}) {
   let activities = raw.map(r => decorate(r, q)).filter(r => {
     if (type && r.type !== type) return false;
     if (kind && r.kind !== kind) return false;
-    if (!inRange(r, from, to)) return false;
+    if (!inRange(r.started_at, from, to)) return false;
     return true;
   }).slice(0, limit);
 
@@ -119,4 +119,4 @@ function search(q, opts = {}) {
   return { q, ms: Date.now() - t0, activities, chunks, entities, memories, calendar, filters: { type: type || '', kind: kind || '', from: from || null, to: to || null } };
 }
 
-module.exports = { search, excerpt, kindOf, decorate, KIND_CN, EXCERPT_MAX };
+module.exports = { search, excerpt, kindOf, decorate, KIND_CN, EXCERPT_MAX, CHAT_APP, CODE_APP };
