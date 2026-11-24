@@ -4,7 +4,7 @@
  */
 const dayjs = require('dayjs');
 const { digest, objectOf, toPrompt, KIND_CN, fmtMin } = require('./docDigest');
-const { redactText } = require('../privacy/redact');
+const { redactText, redactUrl } = require('../privacy/redact');
 
 const LINE_MAX = 80;
 const SNIP_LINE = 72;
@@ -95,7 +95,7 @@ function eventLine(a) {
     const o = objectOf(a);
     if (o && o.name && o.name !== a.window_title) docName = `对象:${o.name}`;
   } catch (_) {}
-  const parts = [t, a.type, a.app_name, a.window_title, docName, a.url, a.file_path];
+  const parts = [t, a.type, a.app_name, a.window_title, docName, a.url ? redactUrl(a.url) : '', a.file_path];
   if (a.content) parts.push(redactText(String(a.content).slice(0, 200).replace(/\s+/g, ' ')));
   if (dur) parts.push(dur);
   return parts.filter(Boolean).join(' | ');
@@ -103,5 +103,5 @@ function eventLine(a) {
 
 module.exports = {
   sessionLine, hourMarkdown, dayMarkdown, promptBlock, eventLine,
-  clip, quoteName, bestExcerpt, LINE_MAX, KIND_CN
+  clip, quoteName, bestExcerpt, redactUrl, LINE_MAX, KIND_CN
 };
